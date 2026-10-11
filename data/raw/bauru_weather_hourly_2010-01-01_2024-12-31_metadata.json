@@ -1,0 +1,21 @@
+{
+  "requested_latitude": -22.3147,
+  "requested_longitude": -49.0608,
+  "grid_latitude": -22.319860458374023,
+  "grid_longitude": -49.048583984375,
+  "grid_elevation_m": 521.0,
+  "timezone": "America/Sao_Paulo",
+  "timezone_offset_seconds": -10800,
+  "start_date": "2010-01-01",
+  "end_date": "2024-12-31",
+  "hourly_variables": [
+    "temperature_2m",
+    "relative_humidity_2m",
+    "precipitation",
+    "wind_speed_10m",
+    "surface_pressure",
+    "shortwave_radiation"
+  ],
+  "fetched_at_utc": "2026-10-11T16:07:15.064452+00:00",
+  "data_source": "Open-Meteo Historical Weather API (ERA5/ERA5-Land)"
+}

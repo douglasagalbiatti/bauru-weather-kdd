@@ -1,0 +1,19 @@
+# Ambientes virtuais
+.venv/
+env/
+venv/
+
+# Caches locais e temporários
+.cache/
+.cache.sqlite
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Configurações locais de IDE / SO
+.vscode/
+.idea/
+.DS_Store
+*.swp

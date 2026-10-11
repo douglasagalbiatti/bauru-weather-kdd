@@ -1,0 +1,120 @@
+{
+  "stationarity_tests": [
+    {
+      "variable": "Temperatura Média Diária",
+      "adf": {
+        "test_statistic": -6.461413072777265,
+        "p_value": 1.4401340881874602e-08,
+        "is_stationary_p05": true
+      },
+      "kpss": {
+        "test_statistic": 0.05316759442379156,
+        "p_value": 0.1,
+        "is_stationary_p05": true
+      }
+    },
+    {
+      "variable": "Precipitação Diária",
+      "adf": {
+        "test_statistic": -12.956979697579575,
+        "p_value": 3.285390909530441e-24,
+        "is_stationary_p05": true
+      },
+      "kpss": {
+        "test_statistic": 0.292609263366944,
+        "p_value": 0.1,
+        "is_stationary_p05": true
+      }
+    },
+    {
+      "variable": "Temperatura Média Mensal",
+      "adf": {
+        "test_statistic": -3.2770141328542013,
+        "p_value": 0.01593773386190345,
+        "is_stationary_p05": true
+      },
+      "kpss": {
+        "test_statistic": 0.02933029197365399,
+        "p_value": 0.1,
+        "is_stationary_p05": true
+      }
+    },
+    {
+      "variable": "Precipitação Mensal",
+      "adf": {
+        "test_statistic": -2.3727256584401846,
+        "p_value": 0.14958280529526208,
+        "is_stationary_p05": false
+      },
+      "kpss": {
+        "test_statistic": 0.1741536920284718,
+        "p_value": 0.1,
+        "is_stationary_p05": true
+      }
+    }
+  ],
+  "mann_kendall_trends": [
+    {
+      "variable": "Temperatura Média Mensal",
+      "trend": "no trend",
+      "hypothesis_p_value": 0.566653681723551,
+      "z_score": 0.5729867259091652,
+      "tau": 0.028729281767955802,
+      "sens_slope": 0.0017280125895051683,
+      "has_statistically_significant_trend": false
+    },
+    {
+      "variable": "Temperatura Máxima Mensal",
+      "trend": "no trend",
+      "hypothesis_p_value": 0.07827879906254176,
+      "z_score": 1.7607613795818096,
+      "tau": 0.08815224063842848,
+      "sens_slope": 0.007615898550724608,
+      "has_statistically_significant_trend": false
+    },
+    {
+      "variable": "Temperatura Mínima Mensal",
+      "trend": "no trend",
+      "hypothesis_p_value": 0.49433651666725176,
+      "z_score": -0.6834278660392826,
+      "tau": -0.03425414364640884,
+      "sens_slope": -0.004880753713552163,
+      "has_statistically_significant_trend": false
+    },
+    {
+      "variable": "Precipitação Total Mensal",
+      "trend": "no trend",
+      "hypothesis_p_value": 0.1480136664141618,
+      "z_score": -1.4465832993935994,
+      "tau": -0.07243707796193984,
+      "sens_slope": -0.127216610549944,
+      "has_statistically_significant_trend": false
+    },
+    {
+      "variable": "Máximo de Dias Secos Consecutivos",
+      "trend": "no trend",
+      "hypothesis_p_value": 0.48593498709462346,
+      "z_score": 0.6967887827160859,
+      "tau": 0.03486801718845918,
+      "sens_slope": 0.0,
+      "has_statistically_significant_trend": false
+    }
+  ],
+  "subperiod_comparison": {
+    "period_1_years": "2010-2016",
+    "period_2_years": "2017-2024",
+    "temperature_mean_c": {
+      "period_1": 22.487436257689208,
+      "period_2": 22.530121735659712,
+      "difference": 0.04268547797050459,
+      "ttest_p_value": 0.6190999768473782,
+      "mann_whitney_p_value": 0.5500887404182513,
+      "statistically_different": false
+    },
+    "consecutive_dry_days_max": {
+      "period_1_max": 64,
+      "period_2_max": 71,
+      "mann_whitney_p_value": 1.3677506104003258e-08
+    }
+  }
+}

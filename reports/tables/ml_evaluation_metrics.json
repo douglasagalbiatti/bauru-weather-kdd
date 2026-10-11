@@ -1,0 +1,57 @@
+{
+  "model": "XGBoost Regressor (Previsão de Temp. Máxima t+1)",
+  "train_period": "2010-2021 (4.380 dias)",
+  "test_period": "2022-2024 (1.096 dias)",
+  "xgboost": {
+    "mae_celsius": 1.5,
+    "rmse_celsius": 2.031,
+    "r2_score": 0.682
+  },
+  "baseline_persistence": {
+    "mae_celsius": 1.66,
+    "rmse_celsius": 2.343
+  },
+  "improvement_over_baseline_pct": 9.61,
+  "top_features": [
+    {
+      "feature": "temp_max",
+      "importance_gain_pct": 42.44
+    },
+    {
+      "feature": "temp_mean",
+      "importance_gain_pct": 15.57
+    },
+    {
+      "feature": "solar_radiation_sum",
+      "importance_gain_pct": 7.7
+    },
+    {
+      "feature": "thermal_amplitude",
+      "importance_gain_pct": 3.67
+    },
+    {
+      "feature": "humidity_min",
+      "importance_gain_pct": 3.21
+    },
+    {
+      "feature": "cos_doy",
+      "importance_gain_pct": 2.9
+    },
+    {
+      "feature": "precipitation_sum",
+      "importance_gain_pct": 2.53
+    },
+    {
+      "feature": "temp_mean_roll7",
+      "importance_gain_pct": 2.2
+    },
+    {
+      "feature": "surface_pressure_mean",
+      "importance_gain_pct": 1.94
+    },
+    {
+      "feature": "sin_doy",
+      "importance_gain_pct": 1.7
+    }
+  ]
+}
