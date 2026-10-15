@@ -326,40 +326,48 @@ def _fetch_ipmet_live_raw(_df_daily: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[s
     Realiza o web scraping da estação meteorológica de superfície do IPMet/UNESP Bauru
     (https://www.ipmetradar.com.br/2estacao.php) e combina com a inércia histórica local.
     """
-    url = "https://www.ipmetradar.com.br/2estacao.php"
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/124.0.0.0 Safari/537.36"
         ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
         "Referer": "https://www.ipmetradar.com.br/",
+        "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "Upgrade-Insecure-Requests": "1",
         "Connection": "keep-alive",
     }
 
     session = requests.Session()
     session.headers.update(headers)
-    session.max_redirects = 3
 
-    retries = Retry(
-        total=2,
-        redirect=2,
-        backoff_factor=1.0,
-        status_forcelist=[500, 502, 503, 504],
-        raise_on_status=True,
-    )
-    adapter = HTTPAdapter(max_retries=retries)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
+    urls = [
+        "https://www.ipmetradar.com.br/2estacao.php",
+        "http://www.ipmetradar.com.br/2estacao.php",
+    ]
+    response = None
+    last_err = None
 
-    response = session.get(url, timeout=10)
-    response.raise_for_status()
+    # allow_redirects=False impede categoricamente loops de redirecionamento (TooManyRedirects)
+    for target_url in urls:
+        try:
+            resp = session.get(target_url, timeout=10, allow_redirects=False)
+            if resp.status_code == 200 and "<table" in resp.text.lower():
+                response = resp
+                break
+            elif resp.status_code in (301, 302, 303, 307, 308):
+                last_err = f"Servidor Apache redirecionou temporariamente (HTTP {resp.status_code})"
+            else:
+                last_err = f"Código HTTP inesperado ({resp.status_code})"
+        except Exception as ex:
+            last_err = str(ex)
 
-    # Prevenção contra loop ou redirecionamento do Apache para fora da estação
-    if "2estacao.php" not in response.url:
-        raise ValueError("Servidor do IPMet temporariamente indisponível (redirecionamento da estação).")
+    if response is None:
+        raise ValueError(f"Estação IPMet indisponível: {last_err}")
 
     tables = re.findall(r"<table[^>]*>(.*?)</table>", response.text, re.DOTALL | re.IGNORECASE)
     if not tables:
