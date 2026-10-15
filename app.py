@@ -4,6 +4,8 @@ Metodologia KDD (Knowledge Discovery in Databases)
 Autor: Prof. Dr. Douglas A. Galbiatti
 """
 
+from datetime import datetime
+import html
 from pathlib import Path
 import json
 import joblib
@@ -12,6 +14,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import re
 from typing import Any, Dict, Optional, Tuple
 import requests
 from requests.adapters import HTTPAdapter
@@ -317,25 +320,169 @@ def _fetch_open_meteo_live_raw(
     return inference_row, summary_today
 
 
+@st.cache_data(ttl=900, show_spinner=False)
+def _fetch_ipmet_live_raw(df_daily: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Realiza o web scraping da estação meteorológica de superfície do IPMet/UNESP Bauru
+    (https://www.ipmetradar.com.br/2estacao.php) e combina com a inércia histórica local.
+    """
+    url = "https://www.ipmetradar.com.br/2estacao.php"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) BauruWeatherKDD/1.0"
+    }
+
+    session = requests.Session()
+    retries = Retry(total=2, backoff_factor=1.0, status_forcelist=[500, 502, 503, 504], raise_on_status=True)
+    adapter = HTTPAdapter(max_retries=retries)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+
+    response = session.get(url, headers=headers, timeout=10)
+    response.raise_for_status()
+
+    tables = re.findall(r"<table[^>]*>(.*?)</table>", response.text, re.DOTALL | re.IGNORECASE)
+    if not tables:
+        raise ValueError("Tabela da estação IPMet não encontrada na página.")
+
+    clean_text = html.unescape(re.sub(r"<[^>]+>", " ", tables[0]))
+    clean_text = " ".join(clean_text.split())
+
+    time_m = re.search(r"Horário da Leitura \(GMT-3\)\s*([\d\/]+ - [\d:]+)", clean_text)
+    temp_m = re.search(r"Temp:\s*([\d\.\-]+)\s*o\s*C", clean_text)
+    max_m = re.search(r"Max:\s*([\d\.\-]+)\s*o\s*C", clean_text)
+    min_m = re.search(r"Min:\s*([\d\.\-]+)\s*o\s*C", clean_text)
+    chuva_m = re.search(r"Hoje:\s*([\d\.\-]+)\s*mm", clean_text)
+    umid_m = re.search(r"Umidade:\s*([\d\.\-]+)%", clean_text)
+    umid_min_m = re.search(r"Min:\s*([\d\.\-]+)%", clean_text)
+    vento_m = re.search(r"Veloc:\s*([\d\.\-]+)\s*km/h", clean_text)
+    rajada_m = re.search(r"Max dia:\s*([\d\.\-]+)\s*km/h", clean_text)
+    pressao_m = re.search(r"Pressão:\s*([\d\.\-]+)\s*mB", clean_text)
+    rad_m = re.search(r"Radiação Global:\s*([\d\.\-]+)\s*W/m", clean_text)
+
+    temp_atual = float(temp_m.group(1)) if temp_m else 22.0
+    temp_max = float(max_m.group(1)) if max_m else temp_atual
+    temp_min = float(min_m.group(1)) if min_m else temp_atual
+    temp_mean = (temp_max + temp_min) / 2.0 if temp_max != temp_min else temp_atual
+    precip_today = float(chuva_m.group(1)) if chuva_m else 0.0
+    hum_min = float(umid_min_m.group(1)) if umid_min_m else (float(umid_m.group(1)) if umid_m else 50.0)
+    hum_mean = float(umid_m.group(1)) if umid_m else 70.0
+    wind_mean = float(vento_m.group(1)) if vento_m else 8.0
+    wind_max = float(rajada_m.group(1)) if rajada_m else (wind_mean * 1.5)
+    press_mean = float(pressao_m.group(1)) if pressao_m else 955.0
+
+    rad_val = float(rad_m.group(1)) if rad_m else 0.0
+    solar_rad = rad_val if rad_val > 50.0 else float(df_daily["solar_radiation_sum"].iloc[-1])
+
+    roll7_temp = float(df_daily["temp_mean"].tail(7).mean())
+    roll7_rain = float(df_daily["precipitation_sum"].tail(7).sum())
+    roll30_temp = float(df_daily["temp_mean"].tail(30).mean())
+    lag1_temp = float(df_daily["temp_mean"].iloc[-1])
+    lag7_temp = float(df_daily["temp_mean"].iloc[-7]) if len(df_daily) >= 7 else lag1_temp
+    lag2_max = float(df_daily["temp_max"].iloc[-2]) if len(df_daily) >= 2 else temp_max
+    lag3_max = float(df_daily["temp_max"].iloc[-3]) if len(df_daily) >= 3 else temp_max
+    lag1_hum = float(df_daily["humidity_mean"].iloc[-1])
+    lag1_rad = float(df_daily["solar_radiation_sum"].iloc[-1])
+    lag1_press = float(df_daily["surface_pressure_mean"].iloc[-1])
+
+    now = datetime.now()
+    doy = now.timetuple().tm_yday
+    sin_doy = float(np.sin(2 * np.pi * doy / 365.25))
+    cos_doy = float(np.cos(2 * np.pi * doy / 365.25))
+
+    inference_row = pd.DataFrame([{
+        "temp_mean": temp_mean,
+        "temp_min": temp_min,
+        "temp_max": temp_max,
+        "thermal_amplitude": temp_max - temp_min,
+        "humidity_mean": hum_mean,
+        "humidity_min": hum_min,
+        "precipitation_sum": precip_today,
+        "wind_speed_mean": wind_mean,
+        "wind_speed_max": wind_max,
+        "surface_pressure_mean": press_mean,
+        "solar_radiation_sum": solar_rad,
+        "temp_mean_roll7": roll7_temp,
+        "temp_mean_roll30": roll30_temp,
+        "precip_sum_roll7": roll7_rain,
+        "temp_mean_lag1": lag1_temp,
+        "temp_mean_lag7": lag7_temp,
+        "temp_max_lag2": lag2_max,
+        "temp_max_lag3": lag3_max,
+        "humidity_lag1": lag1_hum,
+        "radiation_lag1": lag1_rad,
+        "pressure_lag1": lag1_press,
+        "sin_doy": sin_doy,
+        "cos_doy": cos_doy,
+    }])
+
+    reading_time = time_m.group(1) if time_m else now.strftime("%d/%m/%Y")
+    summary = {
+        "date": reading_time,
+        "temp_mean": temp_mean,
+        "temp_max": temp_max,
+        "temp_min": temp_min,
+        "humidity_min": hum_min,
+        "precipitation": precip_today,
+        "wind_max": wind_max,
+        "pressure": press_mean,
+        "solar_radiation": solar_rad,
+        "status": "ipmet_online",
+    }
+    return inference_row, summary
+
+
 def fetch_live_today_weather(
     df_daily: Optional[pd.DataFrame] = None,
+    source_mode: str = "auto",
     latitude: float = -22.3147,
     longitude: float = -49.0608,
     timezone: str = "America/Sao_Paulo",
 ) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]], Optional[str]]:
     """
-    Wrapper resiliente que busca as condições em tempo real e, se a API falhar
-    (ex: HTTP 429 Too Many Requests), ativa a contingência automática usando
-    os últimos registros consolidados locais, sem gravar erros no cache do Streamlit.
+    Provedor multinível resiliente de dados climáticos em tempo real:
+    - auto: Tenta Open-Meteo -> Fallback IPMet Bauru -> Fallback histórico local.
+    - ipmet: Consulta a estação física do IPMet/UNESP Bauru via web scraping.
+    - open_meteo: Consulta a API Open-Meteo Forecast.
     """
+    if source_mode == "ipmet":
+        try:
+            if df_daily is not None and len(df_daily) >= 4:
+                inference_row, summary = _fetch_ipmet_live_raw(df_daily)
+                return inference_row, summary, None
+            raise ValueError("Base histórica necessária para lags temporais.")
+        except Exception as e:
+            if df_daily is not None and len(df_daily) >= 4:
+                c_row, c_sum = build_contingency_vector_from_history(df_daily)
+                return c_row, c_sum, f"IPMet: {e}"
+            return None, None, str(e)
+
+    if source_mode == "open_meteo":
+        try:
+            inference_row, summary_today = _fetch_open_meteo_live_raw(latitude, longitude, timezone)
+            return inference_row, summary_today, None
+        except Exception as e:
+            if df_daily is not None and len(df_daily) >= 4:
+                c_row, c_sum = build_contingency_vector_from_history(df_daily)
+                return c_row, c_sum, f"Open-Meteo: {e}"
+            return None, None, str(e)
+
+    # Modo automático (auto)
     try:
         inference_row, summary_today = _fetch_open_meteo_live_raw(latitude, longitude, timezone)
         return inference_row, summary_today, None
-    except Exception as e:
+    except Exception as e_om:
+        # Camada 2: Tenta Estação IPMet / UNESP Bauru como fallback imediato
         if df_daily is not None and len(df_daily) >= 4:
-            contingency_row, contingency_summary = build_contingency_vector_from_history(df_daily)
-            return contingency_row, contingency_summary, str(e)
-        return None, None, str(e)
+            try:
+                i_row, i_sum = _fetch_ipmet_live_raw(df_daily)
+                i_sum["status"] = "ipmet_fallback"
+                return i_row, i_sum, str(e_om)
+            except Exception:
+                pass
+            # Camada 3: Contingência histórica local
+            c_row, c_sum = build_contingency_vector_from_history(df_daily)
+            return c_row, c_sum, str(e_om)
+        return None, None, str(e_om)
 
 
 df_daily, df_monthly, stats_report, ml_metrics, df_preds, xgb_model = load_datasets()
@@ -695,39 +842,82 @@ with tab4:
         "de ajuste manual de parâmetros:"
     )
 
-    c_btn1, c_btn2 = st.columns([2, 5])
+    c_btn1, c_sel2 = st.columns([2, 5])
     with c_btn1:
-        btn_refresh = st.button("🔄 Atualizar Dados de Hoje (Ao Vivo)")
+        st.write("")
+        st.write("")
+        btn_refresh = st.button("🔄 Atualizar Dados de Hoje")
+    with c_sel2:
+        source_label = st.selectbox(
+            "Origem das Condições de Hoje:",
+            options=[
+                "Automático (Open-Meteo com fallback IPMet / UNESP)",
+                "📡 Estação Meteorológica IPMet / UNESP Bauru (Sensor Físico)",
+                "🛰️ API Open-Meteo (Modelos Globais Reanálise / GFS)",
+            ],
+            index=0,
+            help="Selecione a fonte de dados em tempo real ou deixe no modo automático resiliente.",
+        )
+
+    mode_map = {
+        "Automático (Open-Meteo com fallback IPMet / UNESP)": "auto",
+        "📡 Estação Meteorológica IPMet / UNESP Bauru (Sensor Físico)": "ipmet",
+        "🛰️ API Open-Meteo (Modelos Globais Reanálise / GFS)": "open_meteo",
+    }
+    source_mode = mode_map[source_label]
 
     if btn_refresh:
         st.cache_data.clear()
         st.rerun()
 
-    # Busca condições de hoje online (com fallback gracioso na base diária local se houver rate limit 429)
-    live_vector, live_summary, live_err = fetch_live_today_weather(df_daily=df_daily)
+    # Busca condições de hoje online através do provedor selecionado
+    live_vector, live_summary, live_err = fetch_live_today_weather(
+        df_daily=df_daily,
+        source_mode=source_mode,
+    )
 
     if live_summary and live_vector is not None and xgb_model is not None:
         predicted_online = float(xgb_model.predict(live_vector)[0])
-        is_contingency = live_summary.get("status") == "contingency"
+        status = live_summary.get("status", "online")
+        is_contingency = status == "contingency"
 
         if is_contingency:
             c_warn_col1, c_warn_col2 = st.columns([4, 1])
             with c_warn_col1:
                 st.warning(
-                    f"⚠️ **Modo de Contingência Ativo:** A API Open-Meteo atingiu temporariamente o limite de requisições "
-                    f"(HTTP 429) ou está momentaneamente inacessível. O modelo XGBoost gerou a previsão utilizando o "
-                    f"**último registro meteorológico consolidado na base local ({live_summary['date']})** como referência."
+                    f"⚠️ **Modo de Contingência Ativo:** As fontes online em tempo real estão temporariamente inacessíveis ({live_err}). "
+                    f"O modelo XGBoost gerou a previsão utilizando o **último registro meteorológico consolidado na base local ({live_summary['date']})** como referência."
                 )
             with c_warn_col2:
-                if st.button("🔄 Reconectar", key="btn_reconectar_contingencia", help="Limpa o cache e tenta consultar a API Open-Meteo agora"):
+                if st.button("🔄 Reconectar", key="btn_reconectar_contingencia", help="Limpa o cache e tenta consultar as fontes ao vivo agora"):
                     st.cache_data.clear()
                     st.rerun()
+        elif status == "ipmet_fallback":
+            st.info(
+                f"ℹ️ **Transição Automática para a Estação IPMet / UNESP Bauru:** A API Open-Meteo encontrava-se temporariamente "
+                f"com limite de requisições ou inacessível. As condições climáticas de hoje foram capturadas com sucesso via "
+                f"**Web Scraping da Estação de Superfície da UNESP Bauru** ({live_summary['date']})."
+            )
+        elif status == "ipmet_online":
+            st.markdown(
+                f"""
+                <div class="live-box" style="border-left: 5px solid #2563eb; background-color: #eff6ff;">
+                    <span style="font-weight: 700; color: #1d4ed8; font-size: 1.05rem;">
+                        📡 Estação Meteorológica de Superfície IPMet / UNESP Bauru ({live_summary['date']})
+                    </span>
+                    <div style="font-size: 0.9rem; color: #1e40af; margin-top: 4px;">
+                        Medições físicas locais coletadas em tempo real via web scraping do radar meteorológico (ipmetradar.com.br).
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
         else:
             st.markdown(
                 f"""
                 <div class="live-box">
                     <span style="font-weight: 700; color: #15803d; font-size: 1.05rem;">
-                        📡 Condições Climáticas de Hoje Obtidas Online ({live_summary['date']}) – Bauru/SP
+                        🛰️ Condições Climáticas de Hoje Obtidas Online ({live_summary['date']}) – Bauru/SP
                     </span>
                     <div style="font-size: 0.9rem; color: #475569; margin-top: 4px;">
                         Dados de reanálise/previsão horária coletados em tempo real via Open-Meteo API.
@@ -737,7 +927,7 @@ with tab4:
                 unsafe_allow_html=True,
             )
 
-        # Cards com os dados obtidos (online ou contingência)
+        # Cards com os dados obtidos (online, ipmet ou contingência)
         lcol1, lcol2, lcol3, lcol4, lcol5 = st.columns(5)
         prefix_label = "Referência" if is_contingency else "Hoje"
         with lcol1:
@@ -754,11 +944,12 @@ with tab4:
         # Card de Resultado da Predição da IA
         alert_color = "#16a34a" if predicted_online < 30 else ("#ea580c" if predicted_online < 34 else "#dc2626")
         status_msg = "Ameno / Confortável" if predicted_online < 30 else ("Calor Intenso" if predicted_online < 34 else "Alerta de Calor Extremo")
-        context_msg = (
-            f"Inferência de contingência baseada nos dados consolidados do dia {live_summary['date']} e na inércia dos 7 dias anteriores da base local."
-            if is_contingency
-            else "Cálculo automatizado com base nos dados meteorológicos reais de hoje e na inércia dos últimos 7 dias."
-        )
+        if is_contingency:
+            context_msg = f"Inferência de contingência baseada nos dados consolidados do dia {live_summary['date']} e na inércia dos 7 dias anteriores da base local."
+        elif "ipmet" in status:
+            context_msg = f"Cálculo automatizado com base nos sensores físicos da Estação Meteorológica do IPMet/UNESP Bauru ({live_summary['date']}) e na inércia temporal dos últimos 7 dias."
+        else:
+            context_msg = "Cálculo automatizado com base nos dados meteorológicos reais de hoje e na inércia dos últimos 7 dias."
 
         st.write("")
         st.markdown(
