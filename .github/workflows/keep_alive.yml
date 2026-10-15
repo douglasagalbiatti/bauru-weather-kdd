@@ -1,0 +1,35 @@
+name: Manutenção de Atividade Streamlit (Keep-Alive)
+
+on:
+  # Execução diária a cada 24 horas às 12:00 UTC (09:00 no fuso de Brasília)
+  schedule:
+    - cron: '0 12 * * *'
+
+  # Permite disparo manual pelo botão "Run workflow" no GitHub Actions
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    name: Manter Aplicação Streamlit Acordada
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: 2. Configurar o Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 3. Instalar Dependências do Selenium
+        run: |
+          python -m pip install --upgrade pip
+          pip install selenium>=4.15.0
+
+      - name: 4. Executar Selenium Keep-Alive
+        env:
+          STREAMLIT_APP_URL: ${{ secrets.STREAMLIT_APP_URL || 'https://inteligenciaclimaticabauru.streamlit.app' }}
+        run: |
+          python src/keep_alive_streamlit.py

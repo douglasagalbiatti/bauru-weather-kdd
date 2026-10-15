@@ -18,3 +18,4 @@ jupyter
 streamlit
 xgboost
 joblib
+selenium>=4.15.0
