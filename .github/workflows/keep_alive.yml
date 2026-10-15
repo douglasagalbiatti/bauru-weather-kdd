@@ -1,9 +1,9 @@
 name: Manutenção de Atividade Streamlit (Keep-Alive)
 
 on:
-  # Execução diária a cada 24 horas às 12:00 UTC (09:00 no fuso de Brasília)
+  # Execução a cada 12 horas (às 00:00 e 12:00 UTC / 21:00 e 09:00 BRT)
   schedule:
-    - cron: '0 12 * * *'
+    - cron: '0 */12 * * *'
 
   # Permite disparo manual pelo botão "Run workflow" no GitHub Actions
   workflow_dispatch:
