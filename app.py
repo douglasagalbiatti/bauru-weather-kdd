@@ -321,24 +321,45 @@ def _fetch_open_meteo_live_raw(
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def _fetch_ipmet_live_raw(df_daily: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+def _fetch_ipmet_live_raw(_df_daily: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Realiza o web scraping da estação meteorológica de superfície do IPMet/UNESP Bauru
     (https://www.ipmetradar.com.br/2estacao.php) e combina com a inércia histórica local.
     """
     url = "https://www.ipmetradar.com.br/2estacao.php"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) BauruWeatherKDD/1.0"
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://www.ipmetradar.com.br/",
+        "Connection": "keep-alive",
     }
 
     session = requests.Session()
-    retries = Retry(total=2, backoff_factor=1.0, status_forcelist=[500, 502, 503, 504], raise_on_status=True)
+    session.headers.update(headers)
+    session.max_redirects = 3
+
+    retries = Retry(
+        total=2,
+        redirect=2,
+        backoff_factor=1.0,
+        status_forcelist=[500, 502, 503, 504],
+        raise_on_status=True,
+    )
     adapter = HTTPAdapter(max_retries=retries)
     session.mount("https://", adapter)
     session.mount("http://", adapter)
 
-    response = session.get(url, headers=headers, timeout=10)
+    response = session.get(url, timeout=10)
     response.raise_for_status()
+
+    # Prevenção contra loop ou redirecionamento do Apache para fora da estação
+    if "2estacao.php" not in response.url:
+        raise ValueError("Servidor do IPMet temporariamente indisponível (redirecionamento da estação).")
 
     tables = re.findall(r"<table[^>]*>(.*?)</table>", response.text, re.DOTALL | re.IGNORECASE)
     if not tables:
@@ -371,18 +392,18 @@ def _fetch_ipmet_live_raw(df_daily: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[st
     press_mean = float(pressao_m.group(1)) if pressao_m else 955.0
 
     rad_val = float(rad_m.group(1)) if rad_m else 0.0
-    solar_rad = rad_val if rad_val > 50.0 else float(df_daily["solar_radiation_sum"].iloc[-1])
+    solar_rad = rad_val if rad_val > 50.0 else float(_df_daily["solar_radiation_sum"].iloc[-1])
 
-    roll7_temp = float(df_daily["temp_mean"].tail(7).mean())
-    roll7_rain = float(df_daily["precipitation_sum"].tail(7).sum())
-    roll30_temp = float(df_daily["temp_mean"].tail(30).mean())
-    lag1_temp = float(df_daily["temp_mean"].iloc[-1])
-    lag7_temp = float(df_daily["temp_mean"].iloc[-7]) if len(df_daily) >= 7 else lag1_temp
-    lag2_max = float(df_daily["temp_max"].iloc[-2]) if len(df_daily) >= 2 else temp_max
-    lag3_max = float(df_daily["temp_max"].iloc[-3]) if len(df_daily) >= 3 else temp_max
-    lag1_hum = float(df_daily["humidity_mean"].iloc[-1])
-    lag1_rad = float(df_daily["solar_radiation_sum"].iloc[-1])
-    lag1_press = float(df_daily["surface_pressure_mean"].iloc[-1])
+    roll7_temp = float(_df_daily["temp_mean"].tail(7).mean())
+    roll7_rain = float(_df_daily["precipitation_sum"].tail(7).sum())
+    roll30_temp = float(_df_daily["temp_mean"].tail(30).mean())
+    lag1_temp = float(_df_daily["temp_mean"].iloc[-1])
+    lag7_temp = float(_df_daily["temp_mean"].iloc[-7]) if len(_df_daily) >= 7 else lag1_temp
+    lag2_max = float(_df_daily["temp_max"].iloc[-2]) if len(_df_daily) >= 2 else temp_max
+    lag3_max = float(_df_daily["temp_max"].iloc[-3]) if len(_df_daily) >= 3 else temp_max
+    lag1_hum = float(_df_daily["humidity_mean"].iloc[-1])
+    lag1_rad = float(_df_daily["solar_radiation_sum"].iloc[-1])
+    lag1_press = float(_df_daily["surface_pressure_mean"].iloc[-1])
 
     now = datetime.now()
     doy = now.timetuple().tm_yday
