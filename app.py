@@ -12,7 +12,10 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from typing import Any, Dict, Optional, Tuple
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 import streamlit as st
 
 # Configuração da página
@@ -123,15 +126,73 @@ def load_datasets():
     return df_daily, df_monthly, stats_report, ml_metrics, df_preds, xgb_model
 
 
-@st.cache_data(ttl=1800)
-def fetch_live_today_weather(
+def build_contingency_vector_from_history(df_daily: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Constrói um vetor de inferência e resumo de contingência a partir do último
+    registro histórico diário consolidado na base local.
+    """
+    last_row = df_daily.iloc[-1]
+    last_date = df_daily.index[-1]
+    doy = last_date.dayofyear
+    sin_doy = float(np.sin(2 * np.pi * doy / 365.25))
+    cos_doy = float(np.cos(2 * np.pi * doy / 365.25))
+
+    lag2_max = float(df_daily["temp_max"].iloc[-3]) if len(df_daily) >= 3 else float(last_row["temp_max"])
+    lag3_max = float(df_daily["temp_max"].iloc[-4]) if len(df_daily) >= 4 else float(last_row["temp_max"])
+    lag1_hum = float(df_daily["humidity_mean"].iloc[-2]) if len(df_daily) >= 2 else float(last_row["humidity_mean"])
+    lag1_rad = float(df_daily["solar_radiation_sum"].iloc[-2]) if len(df_daily) >= 2 else float(last_row["solar_radiation_sum"])
+    lag1_press = float(df_daily["surface_pressure_mean"].iloc[-2]) if len(df_daily) >= 2 else float(last_row["surface_pressure_mean"])
+
+    contingency_row = pd.DataFrame([{
+        "temp_mean": float(last_row["temp_mean"]),
+        "temp_min": float(last_row["temp_min"]),
+        "temp_max": float(last_row["temp_max"]),
+        "thermal_amplitude": float(last_row["thermal_amplitude"]),
+        "humidity_mean": float(last_row["humidity_mean"]),
+        "humidity_min": float(last_row["humidity_min"]),
+        "precipitation_sum": float(last_row["precipitation_sum"]),
+        "wind_speed_mean": float(last_row["wind_speed_mean"]),
+        "wind_speed_max": float(last_row["wind_speed_max"]),
+        "surface_pressure_mean": float(last_row["surface_pressure_mean"]),
+        "solar_radiation_sum": float(last_row["solar_radiation_sum"]),
+        "temp_mean_roll7": float(last_row["temp_mean_roll7"]),
+        "temp_mean_roll30": float(last_row["temp_mean_roll30"]),
+        "precip_sum_roll7": float(last_row["precip_sum_roll7"]),
+        "temp_mean_lag1": float(last_row["temp_mean_lag1"]),
+        "temp_mean_lag7": float(last_row["temp_mean_lag7"]),
+        "temp_max_lag2": lag2_max,
+        "temp_max_lag3": lag3_max,
+        "humidity_lag1": lag1_hum,
+        "radiation_lag1": lag1_rad,
+        "pressure_lag1": lag1_press,
+        "sin_doy": sin_doy,
+        "cos_doy": cos_doy,
+    }])
+
+    summary = {
+        "date": last_date.strftime("%d/%m/%Y"),
+        "temp_mean": float(last_row["temp_mean"]),
+        "temp_max": float(last_row["temp_max"]),
+        "temp_min": float(last_row["temp_min"]),
+        "humidity_min": float(last_row["humidity_min"]),
+        "precipitation": float(last_row["precipitation_sum"]),
+        "wind_max": float(last_row["wind_speed_max"]),
+        "pressure": float(last_row["surface_pressure_mean"]),
+        "solar_radiation": float(last_row["solar_radiation_sum"]),
+        "status": "contingency",
+    }
+    return contingency_row, summary
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def _fetch_open_meteo_live_raw(
     latitude: float = -22.3147,
     longitude: float = -49.0608,
     timezone: str = "America/Sao_Paulo",
-):
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Obtém em tempo real via Open-Meteo Forecast API as condições de hoje
-    e os últimos 7 dias para montar o vetor exato de inferência do XGBoost.
+    e os últimos 7 dias. Dispara exceção em caso de erro para NUNCA cachear falhas (como HTTP 429).
     """
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
@@ -156,91 +217,124 @@ def fetch_live_today_weather(
         "timezone": timezone,
     }
 
+    session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=1.2,
+        status_forcelist=[429, 500, 502, 503, 504],
+        raise_on_status=True,
+    )
+    adapter = HTTPAdapter(max_retries=retries)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    session.headers.update({
+        "User-Agent": "BauruWeatherKDD/1.0 (https://github.com/douglasagalbiatti/bauru-weather-kdd; contact: research)"
+    })
+
+    response = session.get(url, params=params, timeout=12)
+    response.raise_for_status()
+    data = response.json()
+
+    daily_data = data["daily"]
+    hourly_data = data["hourly"]
+
+    df_d = pd.DataFrame(daily_data)
+    df_d["time"] = pd.to_datetime(df_d["time"])
+    df_d = df_d.set_index("time")
+
+    df_h = pd.DataFrame(hourly_data)
+    df_h["time"] = pd.to_datetime(df_h["time"])
+    df_h = df_h.set_index("time")
+
+    today_date = df_d.index[-1]
+    today_daily = df_d.iloc[-1]
+    today_hourly = df_h[df_h.index.date == today_date.date()]
+
+    humidity_mean_today = float(today_hourly["relative_humidity_2m"].mean()) if not today_hourly.empty else 60.0
+    humidity_min_today = float(today_hourly["relative_humidity_2m"].min()) if not today_hourly.empty else 40.0
+    pressure_mean_today = float(today_hourly["surface_pressure"].mean()) if not today_hourly.empty else 955.0
+    wind_mean_today = float(today_hourly["wind_speed_10m"].mean()) if not today_hourly.empty else 10.0
+
+    temp_max_today = float(today_daily["temperature_2m_max"])
+    temp_min_today = float(today_daily["temperature_2m_min"])
+    temp_mean_today = float(today_daily["temperature_2m_mean"])
+    precip_today = float(today_daily["precipitation_sum"])
+    wind_max_today = float(today_daily["wind_speed_10m_max"])
+    raw_rad = today_daily.get("shortwave_radiation_sum", 20.0)
+    solar_rad_today = float(raw_rad) * 277.78 if pd.notna(raw_rad) else 20.0 * 277.78
+
+    # Lags reais
+    lag1_temp = float(df_d["temperature_2m_mean"].iloc[-2]) if len(df_d) >= 2 else temp_mean_today
+    lag7_temp = float(df_d["temperature_2m_mean"].iloc[0]) if len(df_d) >= 7 else temp_mean_today
+    lag2_max = float(df_d["temperature_2m_max"].iloc[-3]) if len(df_d) >= 3 else temp_max_today
+    lag3_max = float(df_d["temperature_2m_max"].iloc[-4]) if len(df_d) >= 4 else temp_max_today
+
+    roll7_temp = float(df_d["temperature_2m_mean"].tail(7).mean())
+    roll7_rain = float(df_d["precipitation_sum"].tail(7).sum())
+
+    day_of_year = today_date.dayofyear
+    sin_doy = np.sin(2 * np.pi * day_of_year / 365.25)
+    cos_doy = np.cos(2 * np.pi * day_of_year / 365.25)
+
+    inference_row = pd.DataFrame([{
+        "temp_mean": temp_mean_today,
+        "temp_min": temp_min_today,
+        "temp_max": temp_max_today,
+        "thermal_amplitude": temp_max_today - temp_min_today,
+        "humidity_mean": humidity_mean_today,
+        "humidity_min": humidity_min_today,
+        "precipitation_sum": precip_today,
+        "wind_speed_mean": wind_mean_today,
+        "wind_speed_max": wind_max_today,
+        "surface_pressure_mean": pressure_mean_today,
+        "solar_radiation_sum": solar_rad_today,
+        "temp_mean_roll7": roll7_temp,
+        "temp_mean_roll30": roll7_temp,
+        "precip_sum_roll7": roll7_rain,
+        "temp_mean_lag1": lag1_temp,
+        "temp_mean_lag7": lag7_temp,
+        "temp_max_lag2": lag2_max,
+        "temp_max_lag3": lag3_max,
+        "humidity_lag1": humidity_mean_today,
+        "radiation_lag1": solar_rad_today,
+        "pressure_lag1": pressure_mean_today,
+        "sin_doy": sin_doy,
+        "cos_doy": cos_doy,
+    }])
+
+    summary_today = {
+        "date": today_date.strftime("%d/%m/%Y"),
+        "temp_mean": temp_mean_today,
+        "temp_max": temp_max_today,
+        "temp_min": temp_min_today,
+        "humidity_min": humidity_min_today,
+        "precipitation": precip_today,
+        "wind_max": wind_max_today,
+        "pressure": pressure_mean_today,
+        "solar_radiation": solar_rad_today,
+        "status": "online",
+    }
+    return inference_row, summary_today
+
+
+def fetch_live_today_weather(
+    df_daily: Optional[pd.DataFrame] = None,
+    latitude: float = -22.3147,
+    longitude: float = -49.0608,
+    timezone: str = "America/Sao_Paulo",
+) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]], Optional[str]]:
+    """
+    Wrapper resiliente que busca as condições em tempo real e, se a API falhar
+    (ex: HTTP 429 Too Many Requests), ativa a contingência automática usando
+    os últimos registros consolidados locais, sem gravar erros no cache do Streamlit.
+    """
     try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-
-        daily_data = data["daily"]
-        hourly_data = data["hourly"]
-
-        df_d = pd.DataFrame(daily_data)
-        df_d["time"] = pd.to_datetime(df_d["time"])
-        df_d = df_d.set_index("time")
-
-        df_h = pd.DataFrame(hourly_data)
-        df_h["time"] = pd.to_datetime(df_h["time"])
-        df_h = df_h.set_index("time")
-
-        today_date = df_d.index[-1]
-        today_daily = df_d.iloc[-1]
-        today_hourly = df_h[df_h.index.date == today_date.date()]
-
-        humidity_mean_today = float(today_hourly["relative_humidity_2m"].mean()) if not today_hourly.empty else 60.0
-        humidity_min_today = float(today_hourly["relative_humidity_2m"].min()) if not today_hourly.empty else 40.0
-        pressure_mean_today = float(today_hourly["surface_pressure"].mean()) if not today_hourly.empty else 955.0
-        wind_mean_today = float(today_hourly["wind_speed_10m"].mean()) if not today_hourly.empty else 10.0
-
-        temp_max_today = float(today_daily["temperature_2m_max"])
-        temp_min_today = float(today_daily["temperature_2m_min"])
-        temp_mean_today = float(today_daily["temperature_2m_mean"])
-        precip_today = float(today_daily["precipitation_sum"])
-        wind_max_today = float(today_daily["wind_speed_10m_max"])
-        solar_rad_today = float(today_daily.get("shortwave_radiation_sum", 20.0)) * 277.78
-
-        # Lags reais
-        lag1_temp = float(df_d["temperature_2m_mean"].iloc[-2]) if len(df_d) >= 2 else temp_mean_today
-        lag7_temp = float(df_d["temperature_2m_mean"].iloc[0]) if len(df_d) >= 7 else temp_mean_today
-        lag2_max = float(df_d["temperature_2m_max"].iloc[-3]) if len(df_d) >= 3 else temp_max_today
-        lag3_max = float(df_d["temperature_2m_max"].iloc[-4]) if len(df_d) >= 4 else temp_max_today
-
-        roll7_temp = float(df_d["temperature_2m_mean"].tail(7).mean())
-        roll7_rain = float(df_d["precipitation_sum"].tail(7).sum())
-
-        day_of_year = today_date.dayofyear
-        sin_doy = np.sin(2 * np.pi * day_of_year / 365.25)
-        cos_doy = np.cos(2 * np.pi * day_of_year / 365.25)
-
-        inference_row = pd.DataFrame([{
-            "temp_mean": temp_mean_today,
-            "temp_min": temp_min_today,
-            "temp_max": temp_max_today,
-            "thermal_amplitude": temp_max_today - temp_min_today,
-            "humidity_mean": humidity_mean_today,
-            "humidity_min": humidity_min_today,
-            "precipitation_sum": precip_today,
-            "wind_speed_mean": wind_mean_today,
-            "wind_speed_max": wind_max_today,
-            "surface_pressure_mean": pressure_mean_today,
-            "solar_radiation_sum": solar_rad_today,
-            "temp_mean_roll7": roll7_temp,
-            "temp_mean_roll30": roll7_temp,
-            "precip_sum_roll7": roll7_rain,
-            "temp_mean_lag1": lag1_temp,
-            "temp_mean_lag7": lag7_temp,
-            "temp_max_lag2": lag2_max,
-            "temp_max_lag3": lag3_max,
-            "humidity_lag1": humidity_mean_today,
-            "radiation_lag1": solar_rad_today,
-            "pressure_lag1": pressure_mean_today,
-            "sin_doy": sin_doy,
-            "cos_doy": cos_doy,
-        }])
-
-        summary_today = {
-            "date": today_date.strftime("%d/%m/%Y"),
-            "temp_mean": temp_mean_today,
-            "temp_max": temp_max_today,
-            "temp_min": temp_min_today,
-            "humidity_min": humidity_min_today,
-            "precipitation": precip_today,
-            "wind_max": wind_max_today,
-            "pressure": pressure_mean_today,
-            "solar_radiation": solar_rad_today,
-            "status": "online",
-        }
+        inference_row, summary_today = _fetch_open_meteo_live_raw(latitude, longitude, timezone)
         return inference_row, summary_today, None
     except Exception as e:
+        if df_daily is not None and len(df_daily) >= 4:
+            contingency_row, contingency_summary = build_contingency_vector_from_history(df_daily)
+            return contingency_row, contingency_summary, str(e)
         return None, None, str(e)
 
 
@@ -607,43 +701,64 @@ with tab4:
 
     if btn_refresh:
         st.cache_data.clear()
+        st.rerun()
 
-    # Busca condições de hoje online
-    live_vector, live_summary, live_err = fetch_live_today_weather()
+    # Busca condições de hoje online (com fallback gracioso na base diária local se houver rate limit 429)
+    live_vector, live_summary, live_err = fetch_live_today_weather(df_daily=df_daily)
 
     if live_summary and live_vector is not None and xgb_model is not None:
         predicted_online = float(xgb_model.predict(live_vector)[0])
+        is_contingency = live_summary.get("status") == "contingency"
 
-        st.markdown(
-            f"""
-            <div class="live-box">
-                <span style="font-weight: 700; color: #15803d; font-size: 1.05rem;">
-                    📡 Condições Climáticas de Hoje Obtidas Online ({live_summary['date']}) – Bauru/SP
-                </span>
-                <div style="font-size: 0.9rem; color: #475569; margin-top: 4px;">
-                    Dados de reanálise/previsão horária coletados em tempo real via Open-Meteo API.
+        if is_contingency:
+            c_warn_col1, c_warn_col2 = st.columns([4, 1])
+            with c_warn_col1:
+                st.warning(
+                    f"⚠️ **Modo de Contingência Ativo:** A API Open-Meteo atingiu temporariamente o limite de requisições "
+                    f"(HTTP 429) ou está momentaneamente inacessível. O modelo XGBoost gerou a previsão utilizando o "
+                    f"**último registro meteorológico consolidado na base local ({live_summary['date']})** como referência."
+                )
+            with c_warn_col2:
+                if st.button("🔄 Reconectar", key="btn_reconectar_contingencia", help="Limpa o cache e tenta consultar a API Open-Meteo agora"):
+                    st.cache_data.clear()
+                    st.rerun()
+        else:
+            st.markdown(
+                f"""
+                <div class="live-box">
+                    <span style="font-weight: 700; color: #15803d; font-size: 1.05rem;">
+                        📡 Condições Climáticas de Hoje Obtidas Online ({live_summary['date']}) – Bauru/SP
+                    </span>
+                    <div style="font-size: 0.9rem; color: #475569; margin-top: 4px;">
+                        Dados de reanálise/previsão horária coletados em tempo real via Open-Meteo API.
+                    </div>
                 </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+                """,
+                unsafe_allow_html=True,
+            )
 
-        # Cards com os dados de hoje obtidos online
+        # Cards com os dados obtidos (online ou contingência)
         lcol1, lcol2, lcol3, lcol4, lcol5 = st.columns(5)
+        prefix_label = "Referência" if is_contingency else "Hoje"
         with lcol1:
-            st.metric("Temp. Máx Prevista Hoje", f"{live_summary['temp_max']:.1f} °C")
+            st.metric(f"Temp. Máx ({prefix_label})", f"{live_summary['temp_max']:.1f} °C")
         with lcol2:
-            st.metric("Temp. Média Hoje", f"{live_summary['temp_mean']:.1f} °C")
+            st.metric(f"Temp. Média ({prefix_label})", f"{live_summary['temp_mean']:.1f} °C")
         with lcol3:
             st.metric("Umidade Mínima", f"{live_summary['humidity_min']:.0f} %")
         with lcol4:
-            st.metric("Chuva Registrada Hoje", f"{live_summary['precipitation']:.1f} mm")
+            st.metric("Chuva Registrada", f"{live_summary['precipitation']:.1f} mm")
         with lcol5:
             st.metric("Vento Máximo", f"{live_summary['wind_max']:.1f} km/h")
 
         # Card de Resultado da Predição da IA
         alert_color = "#16a34a" if predicted_online < 30 else ("#ea580c" if predicted_online < 34 else "#dc2626")
         status_msg = "Ameno / Confortável" if predicted_online < 30 else ("Calor Intenso" if predicted_online < 34 else "Alerta de Calor Extremo")
+        context_msg = (
+            f"Inferência de contingência baseada nos dados consolidados do dia {live_summary['date']} e na inércia dos 7 dias anteriores da base local."
+            if is_contingency
+            else "Cálculo automatizado com base nos dados meteorológicos reais de hoje e na inércia dos últimos 7 dias."
+        )
 
         st.write("")
         st.markdown(
@@ -659,7 +774,7 @@ with tab4:
                     Classificação Térmica: <span style="color: {alert_color};">{status_msg}</span>
                 </div>
                 <div style="font-size: 0.85rem; color: #64748b; margin-top: 6px;">
-                    Cálculo automatizado com base nos dados meteorológicos reais de hoje e na inércia dos últimos 7 dias.
+                    {context_msg}
                 </div>
             </div>
             """,

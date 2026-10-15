@@ -84,50 +84,7 @@ segurança** — e, se você pedir, aplica as correções que você aprovar.
 7. **Dados 100% locais.** Tudo do Crivo (config, registro de revisões) fica em `.crivo/`
    na máquina da pessoa, fora do controle de versão. Nada sai pra internet.
 
-<!-- SETUP:START -->
-## Primeira vez (configuração) — faça isto ANTES de qualquer revisão
 
-Se **não** existir o arquivo `.crivo/config.md` na raiz do projeto, faça a configuração
-antes de revisar qualquer coisa. Converse de forma natural (uma pergunta de cada vez,
-ou use o AskUserQuestion) e colete:
-
-1. **Quem é você / qual o projeto** — nome da pessoa ou do negócio e o que este projeto é
-   (ex.: "site da minha clínica", "ERP dos meus clientes", "app de delivery", "automação em n8n").
-2. **Com o que é feito (a stack)** — as linguagens/tecnologias principais que você usa
-   (ex.: "site em WordPress/PHP", "app em React e Node", "scripts em Python", "não sei, a IA que faz").
-   Se a pessoa não souber, tudo bem — descubra sozinho olhando os arquivos do projeto.
-3. **Onde ficam as regras do projeto** — existe um `CLAUDE.md` / `README` / manual com as
-   regras e o padrão de código deste projeto? Qual é o nome da branch principal (`main`/`master`)?
-4. **O nível de rigor padrão** — você quer a revisão **Rápida** (só o que é crítico, pra
-   ir rápido) ou **Profunda** (pente-fino, inclui melhorias)?
-5. **O que mais te preocupa** — o que te tira o sono ao subir código?
-   `bug que quebra pro usuário`, `vazar uma senha/segurança`, `código inchado e confuso`,
-   ou `tudo isso`. (Isso ajusta o peso da revisão pro seu medo real.)
-
-Depois de coletar, **crie o arquivo `.crivo/config.md`** (na raiz do projeto) com esse
-conteúdo, preenchido:
-
-```markdown
-# Configuração do Crivo (local — não subir pro Git)
-
-- Pessoa/negócio: <nome>
-- O que é o projeto: <descrição em uma linha>
-- Stack principal: <linguagens/tecnologias, ou "descobrir pelos arquivos">
-- Arquivo de regras do projeto: <caminho do CLAUDE.md/README, ou "nenhum">
-- Branch principal: <main | master | outra>
-- Rigor padrão: <rapida | profunda>
-- Maior preocupação: <bug | seguranca | simplicidade | tudo>
-```
-
-Também **garanta que `.crivo/` está no `.gitignore`** (crie o `.gitignore` se não existir e
-adicione a linha `.crivo/`) — a config e o registro de revisões são locais e nunca sobem.
-
-Confirme pro usuário em uma frase que está configurado e já ofereça revisar a mudança atual.
-
-**Depois que o `.crivo/config.md` existir, APAGUE este bloco inteiro (de `<!-- SETUP:START -->`
-até `<!-- SETUP:END -->`) deste arquivo SKILL.md** — a configuração é de uma vez só; daí em
-diante o Crivo já está pronto e o passo de setup não precisa mais aparecer.
-<!-- SETUP:END -->
 
 ## Como o Crivo trabalha
 
