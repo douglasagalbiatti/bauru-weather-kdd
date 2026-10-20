@@ -1,0 +1,7 @@
+{
+    "roc_auc": 0.799,
+    "pr_auc": 0.0471,
+    "brier_score": 0.086,
+    "total_treino": 4383,
+    "total_teste": 1746
+}

@@ -1,0 +1,126 @@
+[
+    {
+        "dias_estiagem": 0,
+        "chance_queimada_percentual": 23.93
+    },
+    {
+        "dias_estiagem": 2,
+        "chance_queimada_percentual": 34.69
+    },
+    {
+        "dias_estiagem": 4,
+        "chance_queimada_percentual": 55.03
+    },
+    {
+        "dias_estiagem": 6,
+        "chance_queimada_percentual": 62.68
+    },
+    {
+        "dias_estiagem": 8,
+        "chance_queimada_percentual": 63.24
+    },
+    {
+        "dias_estiagem": 10,
+        "chance_queimada_percentual": 63.24
+    },
+    {
+        "dias_estiagem": 12,
+        "chance_queimada_percentual": 63.24
+    },
+    {
+        "dias_estiagem": 14,
+        "chance_queimada_percentual": 63.24
+    },
+    {
+        "dias_estiagem": 16,
+        "chance_queimada_percentual": 55.47
+    },
+    {
+        "dias_estiagem": 18,
+        "chance_queimada_percentual": 52.39
+    },
+    {
+        "dias_estiagem": 20,
+        "chance_queimada_percentual": 52.39
+    },
+    {
+        "dias_estiagem": 22,
+        "chance_queimada_percentual": 52.39
+    },
+    {
+        "dias_estiagem": 24,
+        "chance_queimada_percentual": 52.39
+    },
+    {
+        "dias_estiagem": 26,
+        "chance_queimada_percentual": 52.39
+    },
+    {
+        "dias_estiagem": 28,
+        "chance_queimada_percentual": 52.39
+    },
+    {
+        "dias_estiagem": 30,
+        "chance_queimada_percentual": 82.11
+    },
+    {
+        "dias_estiagem": 32,
+        "chance_queimada_percentual": 81.09
+    },
+    {
+        "dias_estiagem": 34,
+        "chance_queimada_percentual": 81.09
+    },
+    {
+        "dias_estiagem": 36,
+        "chance_queimada_percentual": 80.32
+    },
+    {
+        "dias_estiagem": 38,
+        "chance_queimada_percentual": 80.32
+    },
+    {
+        "dias_estiagem": 40,
+        "chance_queimada_percentual": 81.27
+    },
+    {
+        "dias_estiagem": 42,
+        "chance_queimada_percentual": 81.22
+    },
+    {
+        "dias_estiagem": 44,
+        "chance_queimada_percentual": 80.5
+    },
+    {
+        "dias_estiagem": 46,
+        "chance_queimada_percentual": 80.5
+    },
+    {
+        "dias_estiagem": 48,
+        "chance_queimada_percentual": 80.5
+    },
+    {
+        "dias_estiagem": 50,
+        "chance_queimada_percentual": 80.5
+    },
+    {
+        "dias_estiagem": 52,
+        "chance_queimada_percentual": 80.5
+    },
+    {
+        "dias_estiagem": 54,
+        "chance_queimada_percentual": 64.82
+    },
+    {
+        "dias_estiagem": 56,
+        "chance_queimada_percentual": 64.82
+    },
+    {
+        "dias_estiagem": 58,
+        "chance_queimada_percentual": 67.26
+    },
+    {
+        "dias_estiagem": 60,
+        "chance_queimada_percentual": 64.65
+    }
+]

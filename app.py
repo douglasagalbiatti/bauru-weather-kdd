@@ -104,6 +104,10 @@ def load_datasets():
     ml_metrics_path = Path("reports/tables/ml_evaluation_metrics.json")
     ml_preds_path = Path("reports/tables/ml_predictions_test.parquet")
     model_path = Path("models/xgboost_weather_bauru.joblib")
+    queimadas_path = Path("data/processed/bauru_weather_queimadas_daily.parquet")
+    curva_risco_path = Path("reports/tables/curva_estiagem_vs_queimadas.json")
+    model_queimadas_path = Path("models/xgboost_queimadas_bauru.joblib")
+    queimadas_metrics_path = Path("reports/tables/queimadas_metricas.json")
 
     df_daily = pd.read_parquet(daily_path)
     df_monthly = pd.read_parquet(monthly_path)
@@ -126,7 +130,36 @@ def load_datasets():
     if model_path.exists():
         xgb_model = joblib.load(model_path)
 
-    return df_daily, df_monthly, stats_report, ml_metrics, df_preds, xgb_model
+    df_queimadas = pd.DataFrame()
+    if queimadas_path.exists():
+        df_queimadas = pd.read_parquet(queimadas_path)
+
+    curva_risco = []
+    if curva_risco_path.exists():
+        with open(curva_risco_path, "r", encoding="utf-8") as f:
+            curva_risco = json.load(f)
+
+    queimadas_metrics = {}
+    if queimadas_metrics_path.exists():
+        with open(queimadas_metrics_path, "r", encoding="utf-8") as f:
+            queimadas_metrics = json.load(f)
+
+    xgb_queimadas_model = None
+    if model_queimadas_path.exists():
+        xgb_queimadas_model = joblib.load(model_queimadas_path)
+
+    return (
+        df_daily,
+        df_monthly,
+        stats_report,
+        ml_metrics,
+        df_preds,
+        xgb_model,
+        df_queimadas,
+        curva_risco,
+        queimadas_metrics,
+        xgb_queimadas_model,
+    )
 
 
 def build_contingency_vector_from_history(df_daily: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
@@ -514,7 +547,18 @@ def fetch_live_today_weather(
         return None, None, str(e_om)
 
 
-df_daily, df_monthly, stats_report, ml_metrics, df_preds, xgb_model = load_datasets()
+(
+    df_daily,
+    df_monthly,
+    stats_report,
+    ml_metrics,
+    df_preds,
+    xgb_model,
+    df_queimadas,
+    curva_risco,
+    queimadas_metrics,
+    xgb_queimadas_model,
+) = load_datasets()
 
 # ==========================================
 # BARRA LATERAL (SIDEBAR) COM FILTROS
@@ -620,11 +664,12 @@ st.write("")
 # ==========================================
 # ABAS DE NAVEGAÇÃO
 # ==========================================
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📊 Panorama Climático",
     "🌡️ Tendências & Anomalias",
     "🌵 Estiagem & Seca (Achado Crítico)",
-    "🤖 Inteligência Artificial (XGBoost)",
+    "🤖 Inteligência Artificial (XGBoost Clima)",
+    "🔥 Queimadas & Risco XGBoost",
     "📋 Explorador de Dados",
 ])
 
@@ -1166,9 +1211,217 @@ with tab4:
             st.plotly_chart(fig_feat, use_container_width=True)
 
 # ------------------------------------------
-# ABA 5: EXPLORADOR DE DADOS
+# ABA 5: QUEIMADAS & RISCO XGBOOST
 # ------------------------------------------
 with tab5:
+    st.subheader("🔥 Relação entre Períodos de Estiagem e Queimadas em Bauru/SP")
+
+    st.markdown(
+        """
+        <div class="explanation-box">
+        💡 <b>Queimadas e Estiagem em Bauru (Dados Oficiais INPE 2010 a 2024):</b><br>
+        Esta seção conecta a série histórica meteorológica de Bauru com as detecções do satélite de referência do 
+        <b>INPE (Instituto Nacional de Pesquisas Espaciais)</b>. O algoritmo <b>XGBoost Classifier</b> foi treinado 
+        para aprender o impacto direto dos dias consecutivos sem chuva e do déficit hídrico acumulado na 
+        <b>probabilidade percentual (%) de focos de queimada</b>.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Filtragem temporal reativa para queimadas
+    if not df_queimadas.empty and "year" in df_queimadas.columns:
+        f_queimadas = df_queimadas[
+            (df_queimadas["year"] >= year_range[0]) & (df_queimadas["year"] <= year_range[1])
+        ]
+    else:
+        f_queimadas = df_queimadas
+
+    # Cartões de Métricas
+    total_focos = int(f_queimadas["queimadas_focos_count"].sum()) if not f_queimadas.empty else 0
+    dias_fogo = int(f_queimadas["has_fire"].sum()) if not f_queimadas.empty else 0
+    taxa_dias = (dias_fogo / max(1, len(f_queimadas))) * 100 if not f_queimadas.empty else 0.0
+
+    col_q1, col_q2, col_q3, col_q4 = st.columns(4)
+    with col_q1:
+        st.markdown(
+            f"""<div class="metric-card"><div class="metric-value">{total_focos}</div><div class="metric-label">Total de Focos Filtrados</div></div>""",
+            unsafe_allow_html=True,
+        )
+    with col_q2:
+        st.markdown(
+            f"""<div class="metric-card"><div class="metric-value">{dias_fogo}</div><div class="metric-label">Dias com Fogo ({taxa_dias:.1f}%)</div></div>""",
+            unsafe_allow_html=True,
+        )
+    with col_q3:
+        st.markdown(
+            """<div class="metric-card"><div class="metric-value" style="color: #dc2626;">2011 e 2024</div><div class="metric-label">Anos Críticos (35 focos/ano)</div></div>""",
+            unsafe_allow_html=True,
+        )
+    with col_q4:
+        st.markdown(
+            """<div class="metric-card"><div class="metric-value" style="color: #16a34a;">79.9%</div><div class="metric-label">ROC-AUC (Poder Preditivo)</div></div>""",
+            unsafe_allow_html=True,
+        )
+
+    st.write("")
+
+    # Gráfico 1: Curva de Probabilidade Calculada pelo XGBoost
+    st.subheader("📈 Curva de Sensibilidade: Probabilidade de Queimada vs. Dias de Estiagem")
+    st.markdown(
+        "Observe no gráfico abaixo como a probabilidade calculada pelo **XGBoost** reage ao aumento dos dias sem chuva contínuos em Bauru:"
+    )
+
+    if curva_risco:
+        df_curva = pd.DataFrame(curva_risco)
+        fig_curva = px.line(
+            df_curva,
+            x="dias_estiagem",
+            y="chance_queimada_percentual",
+            markers=True,
+            title="Chance Percentual Calculada pelo XGBoost (%) vs. Dias Consecutivos de Estiagem",
+            labels={
+                "dias_estiagem": "Dias Consecutivos sem Chuva (Estiagem Contínua)",
+                "chance_queimada_percentual": "Probabilidade de Queimada (%)",
+            },
+            color_discrete_sequence=["#dc2626"],
+        )
+        fig_curva.update_traces(line=dict(width=3), marker=dict(size=7))
+        fig_curva.update_layout(
+            plot_bgcolor="white",
+            hovermode="x unified",
+            yaxis=dict(range=[0, 100], ticksuffix="%"),
+            margin=dict(l=40, r=40, t=50, b=40),
+        )
+        # Zonas de risco
+        fig_curva.add_hrect(
+            y0=0, y1=35, fillcolor="green", opacity=0.07, line_width=0, annotation_text="Faixa de Risco Baixo"
+        )
+        fig_curva.add_hrect(
+            y0=35, y1=70, fillcolor="orange", opacity=0.07, line_width=0, annotation_text="Faixa de Risco Elevado"
+        )
+        fig_curva.add_hrect(
+            y0=70, y1=100, fillcolor="red", opacity=0.07, line_width=0, annotation_text="Faixa de Risco Crítico"
+        )
+        st.plotly_chart(fig_curva, use_container_width=True)
+
+    # Gráfico 2: Histórico Anual de Queimadas
+    st.subheader("📊 Focos Anuais de Queimada Detectados pelo INPE em Bauru")
+    if not f_queimadas.empty and "year" in f_queimadas.columns:
+        df_ano_focos = (
+            f_queimadas.groupby("year")["queimadas_focos_count"].sum().reset_index()
+        )
+        df_ano_focos.columns = ["Ano", "Focos"]
+        fig_ano_focos = px.bar(
+            df_ano_focos,
+            x="Ano",
+            y="Focos",
+            text="Focos",
+            title="Distribuição Anual de Focos em Bauru/SP (Satélite de Referência)",
+            color="Focos",
+            color_continuous_scale="Reds",
+        )
+        fig_ano_focos.update_traces(textposition="outside")
+        fig_ano_focos.update_layout(plot_bgcolor="white", margin=dict(l=40, r=40, t=50, b=40))
+        st.plotly_chart(fig_ano_focos, use_container_width=True)
+
+    # 4. SIMULADOR INTERATIVO EM TEMPO REAL
+    st.subheader("🎛️ Simulador Interativo: Calcule a Chance de Queimada com o XGBoost")
+    st.markdown(
+        "Ajuste os parâmetros atmosféricos abaixo para rodar a inferência do modelo treinado em tempo real:"
+    )
+
+    sim_col1, sim_col2, sim_col3 = st.columns(3)
+    with sim_col1:
+        sim_dias_secos = st.slider("Dias consecutivos de estiagem:", min_value=0, max_value=60, value=20, step=1)
+        sim_temp_max = st.slider(
+            "Temperatura Máxima (°C):", min_value=20.0, max_value=42.0, value=32.0, step=0.5
+        )
+    with sim_col2:
+        sim_umidade_min = st.slider(
+            "Umidade Relativa Mínima (%):", min_value=10.0, max_value=80.0, value=22.0, step=1.0
+        )
+        sim_vento_max = st.slider(
+            "Rajada Máxima de Vento (km/h):", min_value=5.0, max_value=60.0, value=22.0, step=1.0
+        )
+    with sim_col3:
+        sim_chuva_30d = st.slider(
+            "Chuva acumulada em 30 dias (mm):", min_value=0.0, max_value=200.0, value=2.0, step=5.0
+        )
+        sim_mes = st.selectbox(
+            "Mês do Ano:",
+            [
+                "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+            ],
+            index=7,
+        )
+
+    if xgb_queimadas_model is not None:
+        meses_map = {
+            "Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6,
+            "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12,
+        }
+        num_mes = meses_map[sim_mes]
+        doy_aprox = (num_mes - 1) * 30 + 15
+
+        vetor_teste = pd.DataFrame(
+            [
+                {
+                    "consecutive_dry_days": sim_dias_secos,
+                    "precip_sum_roll7": 0.0 if sim_dias_secos >= 7 else 5.0,
+                    "precip_sum_roll15": 0.0 if sim_dias_secos >= 15 else 10.0,
+                    "precip_sum_roll30": sim_chuva_30d,
+                    "precip_sum_roll60": sim_chuva_30d * 1.5,
+                    "humidity_min": sim_umidade_min,
+                    "humidity_mean": min(100.0, sim_umidade_min + 25.0),
+                    "temp_max": sim_temp_max,
+                    "temp_mean": sim_temp_max - 6.0,
+                    "thermal_amplitude": 12.0,
+                    "wind_speed_max": sim_vento_max,
+                    "solar_radiation_sum": 18000.0,
+                    "indice_secura": sim_temp_max / max(1.0, sim_umidade_min),
+                    "indice_propagacao_vento": (sim_vento_max * sim_temp_max) / max(1.0, sim_umidade_min),
+                    "sin_doy": np.sin(2 * np.pi * doy_aprox / 365.25),
+                    "cos_doy": np.cos(2 * np.pi * doy_aprox / 365.25),
+                }
+            ]
+        )
+
+        prob_simulada = float(xgb_queimadas_model.predict_proba(vetor_teste)[:, 1][0] * 100)
+
+        # Determinação do nível de alerta e cor
+        if prob_simulada < 35:
+            alerta_cor = "#16a34a"
+            alerta_texto = "🟢 BAIXO RISCO DE QUEIMADA"
+            alerta_desc = "Condições desfavoráveis para propagação de fogo."
+        elif prob_simulada < 70:
+            alerta_cor = "#ea580c"
+            alerta_texto = "🟠 RISCO MODERADO A ALTO DE QUEIMADA"
+            alerta_desc = "Atenção: A estiagem e o ar seco aumentam a vulnerabilidade da vegetação."
+        else:
+            alerta_cor = "#dc2626"
+            alerta_texto = "🔴 RISCO CRÍTICO DE QUEIMADA"
+            alerta_desc = "Perigo extremo: Longo período sem chuva associado à baixa umidade e calor intenso."
+
+        st.markdown(
+            f"""
+            <div style="background-color: #f8fafc; border: 2px solid {alerta_cor}; border-radius: 12px; padding: 22px; text-align: center; margin-top: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.06);">
+                <div style="font-size: 1.2rem; font-weight: 800; color: {alerta_cor};">{alerta_texto}</div>
+                <div style="font-size: 3.2rem; font-weight: 900; color: {alerta_cor}; margin: 8px 0;">{prob_simulada:.1f}%</div>
+                <div style="font-size: 1.0rem; color: #334155; font-weight: 500;">{alerta_desc}</div>
+                <div style="font-size: 0.85rem; color: #64748b; margin-top: 6px;">Probabilidade calculada via XGBoost Classifier treinado com dados meteorológicos e do INPE para Bauru/SP</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+st.write("")
+
+# ------------------------------------------
+# ABA 6: EXPLORADOR DE DADOS
+# ------------------------------------------
+with tab6:
     st.subheader("Explorador de Dados e Download")
     st.markdown("Consulte os dados meteorológicos tratados e exporte tabelas para suas próprias análises.")
 
