@@ -18,6 +18,7 @@ import re
 from typing import Any, Dict, Optional, Tuple
 import requests
 from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 import streamlit as st
 from src.queimadas_modeling import PlattCalibrator
 
