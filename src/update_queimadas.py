@@ -63,7 +63,7 @@ def update_inpe_ano_corrente(ano: int = None) -> Optional[Path]:
     try:
         headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"}
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req) as resp, open(zip_path, "wb") as f_out:
+        with urllib.request.urlopen(req, timeout=60) as resp, open(zip_path, "wb") as f_out:
             f_out.write(resp.read())
 
         with zipfile.ZipFile(zip_path, "r") as z:
