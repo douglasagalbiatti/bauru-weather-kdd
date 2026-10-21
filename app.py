@@ -18,8 +18,9 @@ import re
 from typing import Any, Dict, Optional, Tuple
 import requests
 from requests.adapters import HTTPAdapter
-from urllib3.util import Retry
 import streamlit as st
+from src.queimadas_modeling import PlattCalibrator
+
 
 # Configuração da página
 st.set_page_config(
@@ -148,6 +149,11 @@ def load_datasets():
     if model_queimadas_path.exists():
         xgb_queimadas_model = joblib.load(model_queimadas_path)
 
+    model_calibrado_path = Path("models/xgboost_queimadas_bauru_calibrado.joblib")
+    xgb_calibrado_model = None
+    if model_calibrado_path.exists():
+        xgb_calibrado_model = joblib.load(model_calibrado_path)
+
     return (
         df_daily,
         df_monthly,
@@ -159,6 +165,7 @@ def load_datasets():
         curva_risco,
         queimadas_metrics,
         xgb_queimadas_model,
+        xgb_calibrado_model,
     )
 
 
@@ -558,6 +565,7 @@ def fetch_live_today_weather(
     curva_risco,
     queimadas_metrics,
     xgb_queimadas_model,
+    xgb_calibrado_model,
 ) = load_datasets()
 
 # ==========================================
@@ -1274,24 +1282,41 @@ with tab5:
 
     if curva_risco:
         df_curva = pd.DataFrame(curva_risco)
-        fig_curva = px.line(
-            df_curva,
-            x="dias_estiagem",
-            y="chance_queimada_percentual",
-            markers=True,
-            title="Chance Percentual Calculada pelo XGBoost (%) vs. Dias Consecutivos de Estiagem",
-            labels={
-                "dias_estiagem": "Dias Consecutivos sem Chuva (Estiagem Contínua)",
-                "chance_queimada_percentual": "Probabilidade de Queimada (%)",
-            },
-            color_discrete_sequence=["#dc2626"],
+        fig_curva = go.Figure()
+
+        # Linha 1: Índice de Risco Relativo (Escala Ponderada de Alerta)
+        fig_curva.add_trace(
+            go.Scatter(
+                x=df_curva["dias_estiagem"],
+                y=df_curva["chance_queimada_percentual"],
+                mode="lines+markers",
+                name="Índice de Risco / Alerta (XGBoost %)",
+                line=dict(color="#dc2626", width=3),
+                marker=dict(size=7),
+            )
         )
-        fig_curva.update_traces(line=dict(width=3), marker=dict(size=7))
+
+        # Linha 2: Probabilidade Real Calibrada (Platt Scaling)
+        if "probabilidade_calibrada_percentual" in df_curva.columns:
+            fig_curva.add_trace(
+                go.Scatter(
+                    x=df_curva["dias_estiagem"],
+                    y=df_curva["probabilidade_calibrada_percentual"],
+                    mode="lines+markers",
+                    name="Probabilidade Real Calibrada (Taxa ao Dia %)",
+                    line=dict(color="#2563eb", width=3, dash="dash"),
+                    marker=dict(size=7),
+                )
+            )
+
         fig_curva.update_layout(
+            title="Chance Percentual Calculada pelo XGBoost vs. Dias Consecutivos de Estiagem",
             plot_bgcolor="white",
             hovermode="x unified",
+            xaxis=dict(title="Dias Consecutivos sem Chuva (Estiagem Contínua)"),
             yaxis=dict(range=[0, 100], ticksuffix="%"),
             margin=dict(l=40, r=40, t=50, b=40),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
         # Zonas de risco
         fig_curva.add_hrect(
@@ -1389,6 +1414,11 @@ with tab5:
         )
 
         prob_simulada = float(xgb_queimadas_model.predict_proba(vetor_teste)[:, 1][0] * 100)
+        prob_calibrada = (
+            float(xgb_calibrado_model.predict_proba(vetor_teste)[:, 1][0] * 100)
+            if xgb_calibrado_model is not None
+            else None
+        )
 
         # Determinação do nível de alerta e cor
         if prob_simulada < 35:
@@ -1404,13 +1434,22 @@ with tab5:
             alerta_texto = "🔴 RISCO CRÍTICO DE QUEIMADA"
             alerta_desc = "Perigo extremo: Longo período sem chuva associado à baixa umidade e calor intenso."
 
+        badge_calibrada = ""
+        if prob_calibrada is not None:
+            badge_calibrada = f"""
+            <div style="margin-top: 10px; padding: 6px 14px; background: #e0f2fe; border: 1px solid #7dd3fc; border-radius: 8px; display: inline-block; font-size: 0.95rem; color: #0369a1; font-weight: 600;">
+                📊 Probabilidade Real Calibrada (Taxa ao Dia): {prob_calibrada:.2f}%
+            </div>
+            """
+
         st.markdown(
             f"""
             <div style="background-color: #f8fafc; border: 2px solid {alerta_cor}; border-radius: 12px; padding: 22px; text-align: center; margin-top: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.06);">
                 <div style="font-size: 1.2rem; font-weight: 800; color: {alerta_cor};">{alerta_texto}</div>
                 <div style="font-size: 3.2rem; font-weight: 900; color: {alerta_cor}; margin: 8px 0;">{prob_simulada:.1f}%</div>
                 <div style="font-size: 1.0rem; color: #334155; font-weight: 500;">{alerta_desc}</div>
-                <div style="font-size: 0.85rem; color: #64748b; margin-top: 6px;">Probabilidade calculada via XGBoost Classifier treinado com dados meteorológicos e do INPE para Bauru/SP</div>
+                {badge_calibrada}
+                <div style="font-size: 0.85rem; color: #64748b; margin-top: 8px;">Índice de alerta ponderado pelo scale_pos_weight e probabilidade real calibrada por Platt Scaling</div>
             </div>
             """,
             unsafe_allow_html=True,

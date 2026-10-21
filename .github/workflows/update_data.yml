@@ -35,7 +35,11 @@ jobs:
         run: |
           python src/update_weather.py
 
-      - name: 5. Verificar e Comitar Novos Dados
+      - name: 5. Executar Sincronização Incremental de Queimadas (INPE)
+        run: |
+          python src/update_queimadas.py
+
+      - name: 6. Verificar e Comitar Novos Dados
         run: |
           # Verifica se algum arquivo em data/ ou reports/ foi modificado
           if [ -n "$(git status --porcelain data/ reports/)" ]; then
@@ -43,8 +47,9 @@ jobs:
             git config --local user.name "github-actions[bot]"
             git config --local user.email "github-actions[bot]@users.noreply.github.com"
             git add data/ reports/
-            git commit -m "chore(data): atualizacao automatica dos dados meteorologicos [skip ci]"
+            git commit -m "chore(data): atualizacao automatica de clima e queimadas [skip ci]"
             git push
           else
             echo "Nenhum dado novo a comitar. A base já estava atualizada."
           fi
+
