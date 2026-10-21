@@ -1227,7 +1227,7 @@ with tab5:
     st.markdown(
         """
         <div class="explanation-box">
-        💡 <b>Queimadas e Estiagem em Bauru (Dados Oficiais INPE 2010 a 2024):</b><br>
+        💡 <b>Queimadas e Estiagem em Bauru (Dados Oficiais INPE 2010 a 2025):</b><br>
         Esta seção conecta a série histórica meteorológica de Bauru com as detecções do satélite de referência do 
         <b>INPE (Instituto Nacional de Pesquisas Espaciais)</b>. O algoritmo <b>XGBoost Classifier</b> foi treinado 
         para aprender o impacto direto dos dias consecutivos sem chuva e do déficit hídrico acumulado na 

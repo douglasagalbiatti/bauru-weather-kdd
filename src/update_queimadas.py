@@ -67,7 +67,11 @@ def update_inpe_ano_corrente(ano: int = None) -> Optional[Path]:
             f_out.write(resp.read())
 
         with zipfile.ZipFile(zip_path, "r") as z:
-            z.extractall(RAW_QUEIMADAS_DIR)
+            membros_csv = [m for m in z.namelist() if m.endswith(".csv")]
+            for membro in membros_csv:
+                nome_final = Path(membro).name
+                with z.open(membro) as fonte, open(RAW_QUEIMADAS_DIR / nome_final, "wb") as destino:
+                    destino.write(fonte.read())
 
         zip_path.unlink(missing_ok=True)
         print(f"Sucesso: {csv_name} atualizado.")

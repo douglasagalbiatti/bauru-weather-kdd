@@ -46,9 +46,13 @@ def download_e_extrair_ano_inpe(ano: int, output_dir: Path = RAW_QUEIMADAS_DIR) 
         with urllib.request.urlopen(req) as response, open(zip_path, "wb") as out_file:
             out_file.write(response.read())
 
-        # Descompactação do arquivo CSV
+        # Descompactação inteligente do CSV (extrai na raiz de output_dir mesmo se o ZIP contiver subpastas como tmp/)
         with zipfile.ZipFile(zip_path, "r") as z:
-            z.extractall(output_dir)
+            membros_csv = [m for m in z.namelist() if m.endswith(".csv")]
+            for membro in membros_csv:
+                nome_final = Path(membro).name
+                with z.open(membro) as fonte, open(output_dir / nome_final, "wb") as destino:
+                    destino.write(fonte.read())
 
         # Remove o arquivo .zip para não ocupar espaço redundante
         zip_path.unlink(missing_ok=True)
@@ -95,7 +99,7 @@ def filtrar_focos_municipio_bauru(csv_path: Path) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def consolidar_serie_focos_bauru(anos: list = range(2010, 2025)) -> pd.DataFrame:
+def consolidar_serie_focos_bauru(anos: list = range(2010, 2026)) -> pd.DataFrame:
     """
     Executa o ciclo completo para a lista de anos:
     1. Baixa cada ano.
@@ -133,5 +137,5 @@ def consolidar_serie_focos_bauru(anos: list = range(2010, 2025)) -> pd.DataFrame
 
 
 if __name__ == "__main__":
-    print("Iniciando coleta e consolidação dos focos de queimada em Bauru (2010 a 2024)...")
-    consolidar_serie_focos_bauru(range(2010, 2025))
+    print("Iniciando coleta e consolidação dos focos de queimada em Bauru (2010 a 2025)...")
+    consolidar_serie_focos_bauru(range(2010, 2026))
