@@ -99,6 +99,8 @@ st.markdown(
 
 @st.cache_data
 def load_datasets():
+    # Chave de controle para invalidação de cache (atualização queimadas 2025)
+    _versao_cache = "bauru_queimadas_2025_v1"
     daily_path = Path("data/processed/bauru_weather_daily.parquet")
     monthly_path = Path("data/processed/bauru_weather_monthly.parquet")
     stats_path = Path("reports/tables/statistical_tests.json")
