@@ -3,7 +3,7 @@ Captura e interpretação da estação meteorológica de superfície do IPMet/UN
 (https://www.ipmetradar.com.br/2estacao.php).
 
 Módulo compartilhado entre:
-- src/update_ipmet.py  -> coletor executado numa máquina com IP brasileiro (self-hosted runner),
+- src/update_ipmet.py  -> coletor executado numa máquina com IP brasileiro (timer do systemd),
                           que grava data/interim/ipmet_latest.json no repositório;
 - app.py               -> painel Streamlit, que lê esse snapshot (o site do IPMet não responde
                           a IPs de servidores estrangeiros como os do Streamlit Community Cloud).
