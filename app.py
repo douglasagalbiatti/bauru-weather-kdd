@@ -28,7 +28,12 @@ from src.ipmet import (
     parse_ipmet_html,
     snapshot_age,
 )
-
+from src.comparacao_ipmet import (
+    buscar_open_meteo,
+    carregar_ipmet,
+    grafico_comparacao,
+    montar_comparacao,
+)
 
 # Configuração da página
 st.set_page_config(
@@ -537,7 +542,6 @@ def fetch_live_today_weather(
             return c_row, c_sum, str(e_om)
         return None, None, str(e_om)
 
-
 (
     df_daily,
     df_monthly,
@@ -552,6 +556,14 @@ def fetch_live_today_weather(
     xgb_calibrado_model,
 ) = load_datasets()
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def _comparacao_ipmet_openmeteo(dias: int) -> Tuple[pd.DataFrame, Optional[float]]:
+    """Comparação IPMet × Open-Meteo, com cache de 30 minutos."""
+    csv_ipmet = Path(__file__).resolve().parent / "data/raw/ipmet/ipmet_readings.csv"
+    ipmet = carregar_ipmet(csv_ipmet)
+    om, altitude_modelo = buscar_open_meteo(dias)
+    return montar_comparacao(ipmet, om), altitude_modelo
+    
 # ==========================================
 # BARRA LATERAL (SIDEBAR) COM FILTROS
 # ==========================================
@@ -656,12 +668,13 @@ st.write("")
 # ==========================================
 # ABAS DE NAVEGAÇÃO
 # ==========================================
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📊 Panorama Climático",
     "🌡️ Tendências & Anomalias",
     "🌵 Estiagem & Seca (Achado Crítico)",
     "🤖 Inteligência Artificial (XGBoost Clima)",
     "🔥 Queimadas & Risco XGBoost",
+    "📡 Sensor × Modelo",
     "📋 Explorador de Dados",
 ])
 
@@ -1442,9 +1455,56 @@ with tab5:
 st.write("")
 
 # ------------------------------------------
-# ABA 6: EXPLORADOR DE DADOS
+# ABA 6: SENSOR (IPMet) × MODELO (Open-Meteo)
 # ------------------------------------------
 with tab6:
+    st.subheader("📡 Estação IPMet/UNESP × Modelo Open-Meteo")
+    st.markdown(
+        "Compara as medições da estação de superfície do IPMet/UNESP Bauru com os valores "
+        "do modelo Open-Meteo para o mesmo ponto, em médias horárias."
+    )
+
+    dias_cmp = st.slider("Período de comparação (dias)", min_value=1, max_value=30, value=7)
+
+    try:
+        comp, altitude_modelo = _comparacao_ipmet_openmeteo(dias_cmp)
+    except FileNotFoundError:
+        comp = None
+        st.info("O histórico da estação IPMet ainda não existe. Ele é criado pelo coletor automático.")
+    except Exception as e:
+        comp = None
+        st.warning(f"Não foi possível montar a comparação agora: {e}")
+
+    if comp is not None and comp.empty:
+        st.info("Ainda não há horas em comum entre as duas fontes no período escolhido.")
+    elif comp is not None:
+        st.caption(f"{len(comp)} horas comparadas, de {comp.index.min():%d/%m %H:%M} a {comp.index.max():%d/%m %H:%M}.")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Viés de temperatura", f"{comp['dif_temp'].mean():+.1f} °C")
+        c2.metric("Viés de umidade", f"{comp['dif_humidity'].mean():+.1f} p.p.")
+        c3.metric("Viés de pressão", f"{comp['dif_pressure'].mean():+.1f} hPa")
+        c4.metric("Viés de vento", f"{comp['dif_wind_speed'].mean():+.1f} km/h")
+
+        st.plotly_chart(grafico_comparacao(comp), use_container_width=True)
+
+        with st.expander("ℹ️ Como interpretar as diferenças"):
+            st.markdown(
+                f"""
+- **Viés** é a diferença média *IPMet − Open-Meteo*: valores positivos indicam que o sensor mediu mais que o modelo.
+- **Pressão:** a diferença é sistemática e vem da altitude. O modelo calcula a pressão para
+  {altitude_modelo if altitude_modelo is not None else "?"} m, e a pressão cai cerca de 1 hPa a cada 8–9 m de subida.
+- **Vento:** o modelo informa o vento a 10 m de altura e representa uma área de vários km;
+  o sensor mede num ponto, em altura e exposição próprias.
+- O sensor é registrado a cada 30 minutos e agregado por hora; o modelo dá o valor da hora cheia.
+                """
+            )
+            st.dataframe(comp.round(1), use_container_width=True)
+
+# ------------------------------------------
+# ABA 7: EXPLORADOR DE DADOS
+# ------------------------------------------
+with tab7:
     st.subheader("Explorador de Dados e Download")
     st.markdown("Consulte os dados meteorológicos tratados e exporte tabelas para suas próprias análises.")
 

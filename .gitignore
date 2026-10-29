@@ -27,3 +27,5 @@ data/raw/queimadas/
 # Self-hosted GitHub Actions runner (credenciais e binários)
 actions-runner/
 
+# Exclusão gráfico comparativo das medições IPMet e OpenMeteo
+comparacao_*.html
