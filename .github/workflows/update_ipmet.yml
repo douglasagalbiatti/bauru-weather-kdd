@@ -7,7 +7,7 @@ name: Coleta da Estação IPMet / UNESP Bauru (runner no Brasil)
 on:
   schedule:
     # A cada 30 minutos (o GitHub pode atrasar execuções agendadas em alguns minutos)
-    - cron: '*/30 * * * *'
+    - cron: '7,37 * * * *'
   workflow_dispatch:
 
 permissions:
