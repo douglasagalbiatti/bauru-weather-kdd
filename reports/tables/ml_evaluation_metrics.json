@@ -1,57 +1,68 @@
 {
   "model": "XGBoost Regressor (Previsão de Temp. Máxima t+1)",
-  "train_period": "2010-2021 (4.380 dias)",
+  "train_period": "2010-2021 (4.376 dias)",
   "test_period": "2022-2024 (1.096 dias)",
+  "train_years": [
+    2010,
+    2021
+  ],
+  "test_years": [
+    2022,
+    2024
+  ],
+  "n_train": 4376,
+  "n_test": 1096,
   "xgboost": {
-    "mae_celsius": 1.5,
-    "rmse_celsius": 2.031,
-    "r2_score": 0.682
+    "mae_celsius": 1.508,
+    "rmse_celsius": 2.051,
+    "r2_score": 0.68
   },
   "baseline_persistence": {
-    "mae_celsius": 1.66,
-    "rmse_celsius": 2.343
+    "mae_celsius": 1.688,
+    "rmse_celsius": 2.422
   },
-  "improvement_over_baseline_pct": 9.61,
+  "improvement_over_baseline_pct": 10.7,
+  "rmse_improvement_over_baseline_pct": 15.31,
   "top_features": [
     {
       "feature": "temp_max",
-      "importance_gain_pct": 42.44
+      "importance_gain_pct": 43.57
     },
     {
       "feature": "temp_mean",
-      "importance_gain_pct": 15.57
+      "importance_gain_pct": 16.32
     },
     {
       "feature": "solar_radiation_sum",
-      "importance_gain_pct": 7.7
+      "importance_gain_pct": 5.83
+    },
+    {
+      "feature": "precipitation_sum",
+      "importance_gain_pct": 3.45
     },
     {
       "feature": "thermal_amplitude",
-      "importance_gain_pct": 3.67
-    },
-    {
-      "feature": "humidity_min",
-      "importance_gain_pct": 3.21
+      "importance_gain_pct": 2.99
     },
     {
       "feature": "cos_doy",
       "importance_gain_pct": 2.9
     },
     {
-      "feature": "precipitation_sum",
-      "importance_gain_pct": 2.53
+      "feature": "humidity_min",
+      "importance_gain_pct": 2.28
     },
     {
       "feature": "temp_mean_roll7",
-      "importance_gain_pct": 2.2
+      "importance_gain_pct": 2.16
+    },
+    {
+      "feature": "wind_speed_max",
+      "importance_gain_pct": 1.8
     },
     {
       "feature": "surface_pressure_mean",
-      "importance_gain_pct": 1.94
-    },
-    {
-      "feature": "sin_doy",
-      "importance_gain_pct": 1.7
+      "importance_gain_pct": 1.68
     }
   ]
 }

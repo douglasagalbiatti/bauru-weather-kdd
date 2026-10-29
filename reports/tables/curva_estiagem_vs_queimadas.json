@@ -1,219 +1,188 @@
 [
     {
         "dias_estiagem": 0,
-        "chance_queimada_percentual": 32.68,
-        "indice_risco_relativo_percentual": 32.68,
-        "probabilidade_calibrada_percentual": 2.21,
-        "probabilidade_analitica_percentual": 0.87
+        "indice_risco_relativo": 49.88,
+        "probabilidade_calibrada_percentual": 2.53,
+        "probabilidade_analitica_percentual": 1.77
     },
     {
         "dias_estiagem": 2,
-        "chance_queimada_percentual": 42.84,
-        "indice_risco_relativo_percentual": 42.84,
-        "probabilidade_calibrada_percentual": 2.4,
-        "probabilidade_analitica_percentual": 1.34
+        "indice_risco_relativo": 49.88,
+        "probabilidade_calibrada_percentual": 2.53,
+        "probabilidade_analitica_percentual": 1.77
     },
     {
         "dias_estiagem": 4,
-        "chance_queimada_percentual": 42.84,
-        "indice_risco_relativo_percentual": 42.84,
-        "probabilidade_calibrada_percentual": 2.4,
-        "probabilidade_analitica_percentual": 1.34
+        "indice_risco_relativo": 46.16,
+        "probabilidade_calibrada_percentual": 2.45,
+        "probabilidade_analitica_percentual": 1.53
     },
     {
         "dias_estiagem": 6,
-        "chance_queimada_percentual": 48.35,
-        "indice_risco_relativo_percentual": 48.35,
-        "probabilidade_calibrada_percentual": 2.51,
-        "probabilidade_analitica_percentual": 1.67
+        "indice_risco_relativo": 62.94,
+        "probabilidade_calibrada_percentual": 2.85,
+        "probabilidade_analitica_percentual": 2.99
     },
     {
         "dias_estiagem": 8,
-        "chance_queimada_percentual": 61.11,
-        "indice_risco_relativo_percentual": 61.11,
-        "probabilidade_calibrada_percentual": 2.78,
-        "probabilidade_analitica_percentual": 2.77
+        "indice_risco_relativo": 65.23,
+        "probabilidade_calibrada_percentual": 2.91,
+        "probabilidade_analitica_percentual": 3.29
     },
     {
         "dias_estiagem": 10,
-        "chance_queimada_percentual": 62.31,
-        "indice_risco_relativo_percentual": 62.31,
-        "probabilidade_calibrada_percentual": 2.81,
-        "probabilidade_analitica_percentual": 2.91
+        "indice_risco_relativo": 65.23,
+        "probabilidade_calibrada_percentual": 2.91,
+        "probabilidade_analitica_percentual": 3.29
     },
     {
         "dias_estiagem": 12,
-        "chance_queimada_percentual": 62.31,
-        "indice_risco_relativo_percentual": 62.31,
-        "probabilidade_calibrada_percentual": 2.81,
-        "probabilidade_analitica_percentual": 2.91
+        "indice_risco_relativo": 65.23,
+        "probabilidade_calibrada_percentual": 2.91,
+        "probabilidade_analitica_percentual": 3.29
     },
     {
         "dias_estiagem": 14,
-        "chance_queimada_percentual": 62.31,
-        "indice_risco_relativo_percentual": 62.31,
-        "probabilidade_calibrada_percentual": 2.81,
-        "probabilidade_analitica_percentual": 2.91
+        "indice_risco_relativo": 65.9,
+        "probabilidade_calibrada_percentual": 2.93,
+        "probabilidade_analitica_percentual": 3.38
     },
     {
         "dias_estiagem": 16,
-        "chance_queimada_percentual": 49.55,
-        "indice_risco_relativo_percentual": 49.55,
-        "probabilidade_calibrada_percentual": 2.53,
-        "probabilidade_analitica_percentual": 1.75
+        "indice_risco_relativo": 63.62,
+        "probabilidade_calibrada_percentual": 2.87,
+        "probabilidade_analitica_percentual": 3.07
     },
     {
         "dias_estiagem": 18,
-        "chance_queimada_percentual": 49.55,
-        "indice_risco_relativo_percentual": 49.55,
-        "probabilidade_calibrada_percentual": 2.53,
-        "probabilidade_analitica_percentual": 1.75
+        "indice_risco_relativo": 63.62,
+        "probabilidade_calibrada_percentual": 2.87,
+        "probabilidade_analitica_percentual": 3.07
     },
     {
         "dias_estiagem": 20,
-        "chance_queimada_percentual": 44.75,
-        "indice_risco_relativo_percentual": 44.75,
-        "probabilidade_calibrada_percentual": 2.44,
-        "probabilidade_analitica_percentual": 1.45
+        "indice_risco_relativo": 63.62,
+        "probabilidade_calibrada_percentual": 2.87,
+        "probabilidade_analitica_percentual": 3.07
     },
     {
         "dias_estiagem": 22,
-        "chance_queimada_percentual": 44.75,
-        "indice_risco_relativo_percentual": 44.75,
-        "probabilidade_calibrada_percentual": 2.44,
-        "probabilidade_analitica_percentual": 1.45
+        "indice_risco_relativo": 63.62,
+        "probabilidade_calibrada_percentual": 2.87,
+        "probabilidade_analitica_percentual": 3.07
     },
     {
         "dias_estiagem": 24,
-        "chance_queimada_percentual": 44.75,
-        "indice_risco_relativo_percentual": 44.75,
-        "probabilidade_calibrada_percentual": 2.44,
-        "probabilidade_analitica_percentual": 1.45
+        "indice_risco_relativo": 63.62,
+        "probabilidade_calibrada_percentual": 2.87,
+        "probabilidade_analitica_percentual": 3.07
     },
     {
         "dias_estiagem": 26,
-        "chance_queimada_percentual": 44.75,
-        "indice_risco_relativo_percentual": 44.75,
-        "probabilidade_calibrada_percentual": 2.44,
-        "probabilidade_analitica_percentual": 1.45
+        "indice_risco_relativo": 55.64,
+        "probabilidade_calibrada_percentual": 2.67,
+        "probabilidade_analitica_percentual": 2.22
     },
     {
         "dias_estiagem": 28,
-        "chance_queimada_percentual": 44.75,
-        "indice_risco_relativo_percentual": 44.75,
-        "probabilidade_calibrada_percentual": 2.44,
-        "probabilidade_analitica_percentual": 1.45
+        "indice_risco_relativo": 55.64,
+        "probabilidade_calibrada_percentual": 2.67,
+        "probabilidade_analitica_percentual": 2.22
     },
     {
         "dias_estiagem": 30,
-        "chance_queimada_percentual": 75.33,
-        "indice_risco_relativo_percentual": 75.33,
-        "probabilidade_calibrada_percentual": 3.11,
-        "probabilidade_analitica_percentual": 5.24
+        "indice_risco_relativo": 74.04,
+        "probabilidade_calibrada_percentual": 3.16,
+        "probabilidade_analitica_percentual": 4.91
     },
     {
         "dias_estiagem": 32,
-        "chance_queimada_percentual": 75.33,
-        "indice_risco_relativo_percentual": 75.33,
-        "probabilidade_calibrada_percentual": 3.11,
-        "probabilidade_analitica_percentual": 5.24
+        "indice_risco_relativo": 62.83,
+        "probabilidade_calibrada_percentual": 2.85,
+        "probabilidade_analitica_percentual": 2.97
     },
     {
         "dias_estiagem": 34,
-        "chance_queimada_percentual": 78.41,
-        "indice_risco_relativo_percentual": 78.41,
-        "probabilidade_calibrada_percentual": 3.19,
-        "probabilidade_analitica_percentual": 6.17
+        "indice_risco_relativo": 62.83,
+        "probabilidade_calibrada_percentual": 2.85,
+        "probabilidade_analitica_percentual": 2.97
     },
     {
         "dias_estiagem": 36,
-        "chance_queimada_percentual": 78.41,
-        "indice_risco_relativo_percentual": 78.41,
-        "probabilidade_calibrada_percentual": 3.19,
-        "probabilidade_analitica_percentual": 6.17
+        "indice_risco_relativo": 67.44,
+        "probabilidade_calibrada_percentual": 2.97,
+        "probabilidade_analitica_percentual": 3.62
     },
     {
         "dias_estiagem": 38,
-        "chance_queimada_percentual": 78.41,
-        "indice_risco_relativo_percentual": 78.41,
-        "probabilidade_calibrada_percentual": 3.19,
-        "probabilidade_analitica_percentual": 6.17
+        "indice_risco_relativo": 67.44,
+        "probabilidade_calibrada_percentual": 2.97,
+        "probabilidade_analitica_percentual": 3.62
     },
     {
         "dias_estiagem": 40,
-        "chance_queimada_percentual": 78.41,
-        "indice_risco_relativo_percentual": 78.41,
-        "probabilidade_calibrada_percentual": 3.19,
-        "probabilidade_analitica_percentual": 6.17
+        "indice_risco_relativo": 67.44,
+        "probabilidade_calibrada_percentual": 2.97,
+        "probabilidade_analitica_percentual": 3.62
     },
     {
         "dias_estiagem": 42,
-        "chance_queimada_percentual": 78.41,
-        "indice_risco_relativo_percentual": 78.41,
-        "probabilidade_calibrada_percentual": 3.19,
-        "probabilidade_analitica_percentual": 6.17
+        "indice_risco_relativo": 67.44,
+        "probabilidade_calibrada_percentual": 2.97,
+        "probabilidade_analitica_percentual": 3.62
     },
     {
         "dias_estiagem": 44,
-        "chance_queimada_percentual": 79.64,
-        "indice_risco_relativo_percentual": 79.64,
-        "probabilidade_calibrada_percentual": 3.22,
-        "probabilidade_analitica_percentual": 6.62
+        "indice_risco_relativo": 67.44,
+        "probabilidade_calibrada_percentual": 2.97,
+        "probabilidade_analitica_percentual": 3.62
     },
     {
         "dias_estiagem": 46,
-        "chance_queimada_percentual": 79.64,
-        "indice_risco_relativo_percentual": 79.64,
-        "probabilidade_calibrada_percentual": 3.22,
-        "probabilidade_analitica_percentual": 6.62
+        "indice_risco_relativo": 76.6,
+        "probabilidade_calibrada_percentual": 3.23,
+        "probabilidade_analitica_percentual": 5.6
     },
     {
         "dias_estiagem": 48,
-        "chance_queimada_percentual": 79.64,
-        "indice_risco_relativo_percentual": 79.64,
-        "probabilidade_calibrada_percentual": 3.22,
-        "probabilidade_analitica_percentual": 6.62
+        "indice_risco_relativo": 76.6,
+        "probabilidade_calibrada_percentual": 3.23,
+        "probabilidade_analitica_percentual": 5.6
     },
     {
         "dias_estiagem": 50,
-        "chance_queimada_percentual": 79.64,
-        "indice_risco_relativo_percentual": 79.64,
-        "probabilidade_calibrada_percentual": 3.22,
-        "probabilidade_analitica_percentual": 6.62
+        "indice_risco_relativo": 76.6,
+        "probabilidade_calibrada_percentual": 3.23,
+        "probabilidade_analitica_percentual": 5.6
     },
     {
         "dias_estiagem": 52,
-        "chance_queimada_percentual": 79.64,
-        "indice_risco_relativo_percentual": 79.64,
-        "probabilidade_calibrada_percentual": 3.22,
-        "probabilidade_analitica_percentual": 6.62
+        "indice_risco_relativo": 73.6,
+        "probabilidade_calibrada_percentual": 3.14,
+        "probabilidade_analitica_percentual": 4.81
     },
     {
         "dias_estiagem": 54,
-        "chance_queimada_percentual": 79.64,
-        "indice_risco_relativo_percentual": 79.64,
-        "probabilidade_calibrada_percentual": 3.22,
-        "probabilidade_analitica_percentual": 6.62
+        "indice_risco_relativo": 73.6,
+        "probabilidade_calibrada_percentual": 3.14,
+        "probabilidade_analitica_percentual": 4.81
     },
     {
         "dias_estiagem": 56,
-        "chance_queimada_percentual": 79.64,
-        "indice_risco_relativo_percentual": 79.64,
-        "probabilidade_calibrada_percentual": 3.22,
-        "probabilidade_analitica_percentual": 6.62
+        "indice_risco_relativo": 73.6,
+        "probabilidade_calibrada_percentual": 3.14,
+        "probabilidade_analitica_percentual": 4.81
     },
     {
         "dias_estiagem": 58,
-        "chance_queimada_percentual": 79.64,
-        "indice_risco_relativo_percentual": 79.64,
-        "probabilidade_calibrada_percentual": 3.22,
-        "probabilidade_analitica_percentual": 6.62
+        "indice_risco_relativo": 73.6,
+        "probabilidade_calibrada_percentual": 3.14,
+        "probabilidade_analitica_percentual": 4.81
     },
     {
         "dias_estiagem": 60,
-        "chance_queimada_percentual": 79.64,
-        "indice_risco_relativo_percentual": 79.64,
-        "probabilidade_calibrada_percentual": 3.22,
-        "probabilidade_analitica_percentual": 6.62
+        "indice_risco_relativo": 78.43,
+        "probabilidade_calibrada_percentual": 3.29,
+        "probabilidade_analitica_percentual": 6.18
     }
 ]

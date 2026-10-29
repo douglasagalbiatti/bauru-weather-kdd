@@ -1,10 +1,18 @@
 {
-    "roc_auc": 0.7871,
-    "pr_auc": 0.0493,
-    "brier_score_ponderado": 0.0893,
-    "brier_score_calibrado": 0.0167,
+    "roc_auc": 0.7635,
+    "pr_auc": 0.0483,
+    "brier_score_ponderado": 0.0876,
+    "brier_score_calibrado": 0.02,
+    "brier_score_climatologia": 0.0201,
+    "brier_skill_score": 0.0072,
+    "prevalencia_treino": 0.0178,
+    "prevalencia_teste": 0.0205,
+    "positivos_treino": 65,
+    "positivos_teste": 30,
     "scale_weight": 55.18,
+    "alvo": "foco de queimada no dia seguinte (t+1)",
+    "periodo_teste": "2022-2025",
     "total_treino": 3652,
     "total_val": 731,
-    "total_teste": 1751
+    "total_teste": 1461
 }

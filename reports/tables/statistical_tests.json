@@ -1,54 +1,60 @@
 {
+  "study_window": "2010-2024",
+  "alpha": 0.05,
   "stationarity_tests": [
     {
       "variable": "Temperatura Média Diária",
       "adf": {
-        "test_statistic": -6.461413072777265,
-        "p_value": 1.4401340881874602e-08,
+        "test_statistic": -6.635380795827464,
+        "p_value": 5.579765973295326e-09,
         "is_stationary_p05": true
       },
       "kpss": {
-        "test_statistic": 0.05316759442379156,
+        "test_statistic": 0.0533056827194699,
         "p_value": 0.1,
+        "p_value_is_lower_bound": true,
         "is_stationary_p05": true
       }
     },
     {
       "variable": "Precipitação Diária",
       "adf": {
-        "test_statistic": -12.956979697579575,
-        "p_value": 3.285390909530441e-24,
+        "test_statistic": -12.924278611807374,
+        "p_value": 3.816888844925184e-24,
         "is_stationary_p05": true
       },
       "kpss": {
-        "test_statistic": 0.292609263366944,
+        "test_statistic": 0.29201640757522024,
         "p_value": 0.1,
+        "p_value_is_lower_bound": true,
         "is_stationary_p05": true
       }
     },
     {
       "variable": "Temperatura Média Mensal",
       "adf": {
-        "test_statistic": -3.2770141328542013,
-        "p_value": 0.01593773386190345,
+        "test_statistic": -2.9774633861617747,
+        "p_value": 0.03705331135472766,
         "is_stationary_p05": true
       },
       "kpss": {
-        "test_statistic": 0.02933029197365399,
+        "test_statistic": 0.030628196627043223,
         "p_value": 0.1,
+        "p_value_is_lower_bound": true,
         "is_stationary_p05": true
       }
     },
     {
       "variable": "Precipitação Mensal",
       "adf": {
-        "test_statistic": -2.3727256584401846,
-        "p_value": 0.14958280529526208,
+        "test_statistic": -2.662103018449495,
+        "p_value": 0.0808287909836633,
         "is_stationary_p05": false
       },
       "kpss": {
-        "test_statistic": 0.1741536920284718,
+        "test_statistic": 0.15413864143058326,
         "p_value": 0.1,
+        "p_value_is_lower_bound": true,
         "is_stationary_p05": true
       }
     }
@@ -56,46 +62,56 @@
   "mann_kendall_trends": [
     {
       "variable": "Temperatura Média Mensal",
+      "test": "Mann-Kendall sazonal (período 12)",
+      "n": 180,
       "trend": "no trend",
-      "hypothesis_p_value": 0.566653681723551,
-      "z_score": 0.5729867259091652,
-      "tau": 0.028729281767955802,
-      "sens_slope": 0.0017280125895051683,
+      "hypothesis_p_value": 0.2139204809298949,
+      "z_score": 1.2428571428571429,
+      "tau": 0.06984126984126984,
+      "sens_slope": 0.02470139204282399,
       "has_statistically_significant_trend": false
     },
     {
       "variable": "Temperatura Máxima Mensal",
-      "trend": "no trend",
-      "hypothesis_p_value": 0.07827879906254176,
-      "z_score": 1.7607613795818096,
-      "tau": 0.08815224063842848,
-      "sens_slope": 0.007615898550724608,
-      "has_statistically_significant_trend": false
+      "test": "Mann-Kendall sazonal (período 12)",
+      "n": 180,
+      "trend": "increasing",
+      "hypothesis_p_value": 0.0006661936590013351,
+      "z_score": 3.403126756906641,
+      "tau": 0.18968253968253967,
+      "sens_slope": 0.10000000000000092,
+      "has_statistically_significant_trend": true
     },
     {
       "variable": "Temperatura Mínima Mensal",
+      "test": "Mann-Kendall sazonal (período 12)",
+      "n": 180,
       "trend": "no trend",
-      "hypothesis_p_value": 0.49433651666725176,
-      "z_score": -0.6834278660392826,
-      "tau": -0.03425414364640884,
-      "sens_slope": -0.004880753713552163,
+      "hypothesis_p_value": 0.09443506080795117,
+      "z_score": -1.6724528357907202,
+      "tau": -0.09365079365079365,
+      "sens_slope": -0.06304545454545457,
       "has_statistically_significant_trend": false
     },
     {
       "variable": "Precipitação Total Mensal",
+      "test": "Mann-Kendall sazonal (período 12)",
+      "n": 180,
       "trend": "no trend",
-      "hypothesis_p_value": 0.1480136664141618,
-      "z_score": -1.4465832993935994,
-      "tau": -0.07243707796193984,
-      "sens_slope": -0.127216610549944,
+      "hypothesis_p_value": 0.09181769661540051,
+      "z_score": -1.6858863237088875,
+      "tau": -0.09444444444444444,
+      "sens_slope": -1.2000000000000015,
       "has_statistically_significant_trend": false
     },
     {
-      "variable": "Máximo de Dias Secos Consecutivos",
+      "variable": "Maior Estiagem de Cada Ano",
+      "test": "Mann-Kendall original",
+      "n": 15,
       "trend": "no trend",
-      "hypothesis_p_value": 0.48593498709462346,
-      "z_score": 0.6967887827160859,
-      "tau": 0.03486801718845918,
+      "hypothesis_p_value": 0.8811571477183873,
+      "z_score": 0.14950248619164647,
+      "tau": 0.0380952380952381,
       "sens_slope": 0.0,
       "has_statistically_significant_trend": false
     }
@@ -104,17 +120,123 @@
     "period_1_years": "2010-2016",
     "period_2_years": "2017-2024",
     "temperature_mean_c": {
-      "period_1": 22.487436257689208,
-      "period_2": 22.530121735659712,
-      "difference": 0.04268547797050459,
-      "ttest_p_value": 0.6190999768473782,
-      "mann_whitney_p_value": 0.5500887404182513,
+      "unit": "média anual",
+      "period_1": 22.48745711662919,
+      "period_2": 22.5302446954141,
+      "difference": 0.04278757878491035,
+      "ttest_p_value": 0.8829070801442723,
+      "mann_whitney_p_value": 0.8665112665112666,
       "statistically_different": false
     },
     "consecutive_dry_days_max": {
-      "period_1_max": 64,
+      "period_1_max": 63,
       "period_2_max": 71,
-      "mann_whitney_p_value": 1.3677506104003258e-08
+      "period_2_max_date": "2023-08-25"
+    },
+    "dry_spell_events": {
+      "unit": "evento de estiagem (sequência de dias com chuva < 1 mm)",
+      "period_1": {
+        "years": "2010-2016",
+        "n_events": 298,
+        "events_per_year": 42.57,
+        "mean_duration_days": 5.325503355704698,
+        "median_duration_days": 3.0,
+        "max_duration_days": 63,
+        "n_events_10_days_or_more": 41,
+        "n_events_30_days_or_more": 6
+      },
+      "period_2": {
+        "years": "2017-2024",
+        "n_events": 335,
+        "events_per_year": 41.88,
+        "mean_duration_days": 6.032835820895523,
+        "median_duration_days": 3.0,
+        "max_duration_days": 71,
+        "n_events_10_days_or_more": 51,
+        "n_events_30_days_or_more": 12
+      },
+      "mann_whitney_duration_p_value": 0.3140777685298828,
+      "statistically_different": false
+    }
+  },
+  "climate_summary": {
+    "study_years": "2010-2024",
+    "n_days": 5479,
+    "n_months": 180,
+    "temp_mean_c": 22.510276117397485,
+    "annual_precip_mean_mm": 1101.56,
+    "monthly_temp_normals_c": {
+      "1": 24.67,
+      "2": 24.79,
+      "3": 24.09,
+      "4": 22.7,
+      "5": 20.1,
+      "6": 18.92,
+      "7": 19.03,
+      "8": 20.4,
+      "9": 23.19,
+      "10": 23.84,
+      "11": 23.82,
+      "12": 24.74
+    },
+    "monthly_precip_normals_mm": {
+      "1": 201.1,
+      "2": 133.5,
+      "3": 135.0,
+      "4": 59.2,
+      "5": 49.7,
+      "6": 44.0,
+      "7": 20.1,
+      "8": 25.4,
+      "9": 45.0,
+      "10": 96.5,
+      "11": 136.8,
+      "12": 155.1
+    },
+    "monthly_amplitude_c": {
+      "1": 8.6,
+      "2": 8.71,
+      "3": 8.72,
+      "4": 9.53,
+      "5": 9.88,
+      "6": 10.26,
+      "7": 11.24,
+      "8": 12.25,
+      "9": 12.65,
+      "10": 11.11,
+      "11": 10.27,
+      "12": 9.24
+    },
+    "temp_max_record": {
+      "value_c": 39.7,
+      "date": "2020-10-07"
+    },
+    "temp_min_record": {
+      "value_c": 3.5,
+      "date": "2021-07-29"
+    },
+    "annual_max_dry_spell_days": {
+      "2010": 53,
+      "2011": 25,
+      "2012": 63,
+      "2013": 38,
+      "2014": 36,
+      "2015": 29,
+      "2016": 38,
+      "2017": 61,
+      "2018": 47,
+      "2019": 30,
+      "2020": 46,
+      "2021": 47,
+      "2022": 25,
+      "2023": 71,
+      "2024": 38
+    },
+    "pearson_correlations": {
+      "temp_max_x_solar_radiation_sum": 0.688,
+      "precipitation_sum_x_thermal_amplitude": -0.548,
+      "temp_mean_x_surface_pressure_mean": -0.592,
+      "humidity_mean_x_thermal_amplitude": -0.789
     }
   }
 }

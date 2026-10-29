@@ -1,167 +1,166 @@
-> ⚠️ **Versão desatualizada — aguardando reprocessamento (29/10/2026).** Uma revisão encontrou três problemas que afetam este texto:
-> (1) a carga 2010–2024 estava em UTC, e não em horário local; (2) o “achado crítico” das estiagens usou um teste inválido (contador diário não independente) — por evento, a diferença entre os períodos não é significativa; (3) o modelo de queimada era treinado com o alvo do mesmo dia.
-> O código já foi corrigido. Rode `python src/reprocessar_pipeline.py` para refazer os resultados; este arquivo será regenerado automaticamente com os números corretos.
-
 # Relatório Final – Descoberta de Conhecimento em Séries Temporais Meteorológicas (Bauru/SP)
 
-**Metodologia:** KDD (*Knowledge Discovery in Databases*)  
-**Município:** Bauru / SP – Brasil  
-**Coordenadas Solicitadas:** Latitude `-22.3147`, Longitude `-49.0608`  
-**Grid ERA5 Modelado:** Latitude `-22.32°`, Longitude `-49.05°`, Altitude `521.0 m`  
-**Período de Análise:** 01/01/2010 a 31/12/2024 (15 anos – 131.496 registros horários)  
-**Fonte Primária:** Open-Meteo Historical Weather API (ERA5 / ERA5-Land Reanalysis)  
+**Metodologia:** KDD (*Knowledge Discovery in Databases*)
+**Município:** Bauru / SP – Brasil
+**Coordenadas solicitadas:** latitude `-22.3147`, longitude `-49.0608`
+**Ponto de grade ERA5:** latitude `-22,320°`, longitude `-49,049°`, altitude `521 m`
+**Janela do estudo:** 2010 a 2024 (5.479 dias, 180 meses) — a base continua sendo atualizada diariamente, mas a inferência estatística usa esta janela fixa
+**Referência temporal:** horário local padrão (UTC−03:00)
+**Fonte primária:** Open-Meteo Historical Weather API (reanálise ERA5 / ERA5-Land)
+
+> Relatório gerado automaticamente por `src/relatorio.py` em 29/10/2026 17:37, a partir de `reports/tables/`.
 
 ---
 
-## 1. Introdução e Contexto do Estudo
+## 1. Introdução
 
-Este projeto implementou o ciclo completo da metodologia **KDD** para caracterizar a dinâmica climática de longo prazo de Bauru/SP, avaliar tendências de aquecimento e investigar a variabilidade e severidade dos períodos de estiagem no centro-oeste paulista.
+Este projeto aplica o ciclo **KDD** para caracterizar o clima de Bauru/SP, testar se há tendências de aquecimento ou de mudança no regime de chuvas e estiagens, e construir modelos de apoio à decisão para calor extremo e risco de queimada.
 
-O estudo foi fundamentado em 6 variáveis horárias de superfície:
-1. `temperature_2m` (°C) – Temperatura do ar a 2 metros.
-2. `relative_humidity_2m` (%) – Umidade relativa do ar.
-3. `precipitation` (mm) – Precipitação líquida horária.
-4. `wind_speed_10m` (km/h) – Velocidade do vento a 10 metros.
-5. `surface_pressure` (hPa) – Pressão atmosférica na superfície.
-6. `shortwave_radiation` (W/m²) – Radiação solar global incidente.
+Variáveis horárias de superfície: `temperature_2m` (°C), `relative_humidity_2m` (%), `precipitation` (mm), `wind_speed_10m` (km/h), `surface_pressure` (hPa) e `shortwave_radiation` (W/m²).
 
 ---
 
-## 2. Síntese do Ciclo KDD Executado
+## 2. Síntese do Ciclo KDD
 
 ```mermaid
 graph TD
-    A["1. Definição de Objetivos e Domínio"] --> B["2. Seleção (API Open-Meteo)"]
-    B --> C["3. Pré-processamento e Limpeza"]
-    C --> D["4. Transformação e Engenharia de Features"]
-    D --> E["5. Mineração de Dados e Estatística"]
-    E --> F["6. Interpretação e Avaliação Crítica"]
+    A["1. Domínio e objetivos"] --> B["2. Seleção (Open-Meteo, INPE, IPMet)"]
+    B --> C["3. Pré-processamento"]
+    C --> D["4. Transformação e engenharia de variáveis"]
+    D --> E["5. Mineração estatística e modelos"]
+    E --> F["6. Interpretação e app em produção"]
 ```
 
-### Etapa 2 – Seleção (Data Selection)
-- **Implementação:** `src/selection.py`.
-- **Estratégia:** Coleta via cliente oficial `openmeteo-requests` com cache local em disco (`requests-cache`) e tolerância a falhas via *backoff* exponencial (`retry-requests`).
-- **Artefatos:**
-  - Base imutável: `data/raw/bauru_weather_hourly_2010-01-01_2024-12-31.csv` (131.496 linhas $\times$ 7 colunas).
-  - Metadados de proveniência: `data/raw/bauru_weather_hourly_2010-01-01_2024-12-31_metadata.json`.
+### Seleção — `src/selection.py`
+Cliente oficial `openmeteo-requests` com cache em disco e *retry* com *backoff* exponencial. Os instantes da API (segundos Unix em UTC) são convertidos para horário local somando o deslocamento da resposta.
 
-### Etapa 3 – Pré-processamento (Preprocessing)
-- **Implementação:** `src/preprocessing.py`.
-- **Integridade Temporal:** Reindexação estrita para grade contínua de 1 hora no fuso `America/Sao_Paulo`. Nenhuma duplicata ou lacuna temporal foi detectada.
-- **Validação de Limites Físicos:** Verificação dos limites operacionais da OMM (Umidade $\in [0, 100]\%$, Precipitação $\ge 0$, Radiação $\ge 0$).
-- **Taxa de Completude:** 100% dos dados válidos (0 NaNs após validação).
-- **Artefato:** `data/processed/bauru_weather_processed.parquet`.
+### Pré-processamento — `src/preprocessing.py`
+- Une a carga histórica aos lotes incrementais de `data/raw/`.
+- **Fuso horário:** a carga histórica antiga estava em UTC; o deslocamento aplicado nesta execução foi de **-3 h**.
+- Continuidade: 0 duplicatas removidas, 0 horas faltantes inseridas.
+- Limites físicos validados e valores ausentes tratados (interpolação temporal limitada a 3 h; chuva ausente = 0 mm).
+- Base horária final: **147.456 registros** (2010-01-01 00:00:00 a 2026-10-27 23:00:00).
 
-### Etapa 4 – Transformação (Transformation)
-- **Implementação:** `src/transformation.py`.
-- **Agregação Diária:** Geração de médias, máximas, mínimas, amplitude térmica diária, detecção de dias chuvosos ($\ge 1.0\text{ mm}$), médias móveis (7 e 30 dias) e contagem cumulativa de dias consecutivos sem chuva (*dry spells*).
-- **Agregação Mensal e Climatologia:** Cálculo da climatologia normal de 15 anos para cada mês ($1..12$) e anomalias térmicas e pluviométricas.
-- **Artefatos:**
-  - `data/processed/bauru_weather_daily.parquet` (5.480 dias $\times$ 24 features).
-  - `data/processed/bauru_weather_monthly.parquet` (181 meses $\times$ 16 features).
-
-### Etapa 5 – Mineração de Dados (Data Mining)
-- **Implementação:** `src/mining.py` e `src/visualization.py`.
-- Testes formais de hipótese, estacionariedade (ADF e KPSS), tendência monotônica (Mann-Kendall com Sen's slope) e decomposição STL.
+### Transformação — `src/transformation.py`
+Agregações diárias e mensais com a função certa para cada variável (média, mínimo, máximo, soma), dias consecutivos sem chuva, médias móveis, *lags*, seno/cosseno do dia do ano e anomalias em relação à climatologia fixa de 2010–2024.
 
 ---
 
-## 3. Principais Descobertas e Evidências Estatísticas
+## 3. Principais Descobertas
 
-### 3.1. Climatologia de Bauru e Sazonalidade Marcante
-O climograma gerado comprova o regime clássico do clima tropical de altitude (*Cwa* de Köppen):
-- **Estação Quente e Chuvosa (Outubro a Março):** Precipitações médias mensais atingindo mais de 200 mm em Janeiro e Dezembro, com temperaturas médias em torno de 24–25 °C.
-- **Estação Seca e Ameno-Fria (Maio a Agosto):** Precipitações inferiores a 40–50 mm mensais, com queda térmica para médias de 18–20 °C e picos de amplitude térmica diária superior a 15 °C.
+### 3.1 Climatologia
+- Temperatura média: **22,5 °C**; mês mais quente: fev (24,8 °C); mais frio: jun (18,9 °C).
+- Chuva média anual: **1.102 mm**; janeiro ≈ 201 mm e julho ≈ 20 mm.
+- Amplitude térmica diária: 8,6 °C em janeiro e 12,7 °C em setembro.
+- Recordes diários: máxima de 39,7 °C (2020-10-07) e mínima de 3,5 °C (2021-07-29).
 
 ![Climograma de Bauru](figures/fig01_climograma_bauru.png)
 
----
+### 3.2 Estacionariedade (ADF e KPSS)
+ADF: H0 = não estacionária. KPSS: H0 = estacionária. Usados juntos porque as hipóteses nulas são opostas.
 
-### 3.2. Testes de Estacionariedade e Tendência Térmica
-
-| Variável Analisada | Teste ADF ($p$-value) | Status ADF | Teste KPSS ($p$-value) | Mann-Kendall (Tendência) | Sen's Slope |
+| Série | ADF (estatística) | ADF (p) | KPSS (estatística) | KPSS (p) | Leitura |
 |---|---|---|---|---|---|
-| **Temp. Média Diária** | $1.44 \times 10^{-8}$ | Estacionária | $0.10$ (Estacionária) | — | — |
-| **Precipitação Diária** | $3.29 \times 10^{-24}$ | Estacionária | $0.10$ (Estacionária) | — | — |
-| **Temp. Média Mensal** | $0.0159$ | Estacionária | $0.10$ (Estacionária) | Sem tendência global ($p=0.567$) | $+0.0017$ °C/mês |
-| **Temp. Máxima Mensal** | — | — | — | Tendência positiva moderada ($p=0.078$) | $+0.0076$ °C/mês |
-| **Precipitação Mensal** | $0.1495$ | Não-estacionária | $0.10$ (Estacionária) | Sem tendência monotônica ($p=0.148$) | $-0.127$ mm/mês |
+| Temperatura Média Diária | -6,64 | 5,58 × 10^-9 | 0,053 | ≥ 0,10 | Estacionária (os dois testes concordam) |
+| Precipitação Diária | -12,92 | 3,82 × 10^-24 | 0,292 | ≥ 0,10 | Estacionária (os dois testes concordam) |
+| Temperatura Média Mensal | -2,98 | 0,037 | 0,031 | ≥ 0,10 | Estacionária (os dois testes concordam) |
+| Precipitação Mensal | -2,66 | 0,081 | 0,154 | ≥ 0,10 | Inconclusiva (os testes discordam) |
 
-**Interpretação:**
-A série temporal de temperatura média mensal não apresenta tendência de aquecimento monotônico estatisticamente significante na escala decadal ($p > 0.05$). No entanto, a **temperatura máxima mensal** demonstra tendência marginalmente significante de alta ($Z = 1.76$, $p = 0.078$, Sen's slope positivo), sugerindo maior intensidade de picos térmicos em episódios quentes.
+### 3.3 Tendências (Mann-Kendall e declive de Sen)
+Séries mensais usam o **Mann-Kendall sazonal**, que compara cada mês com o mesmo mês dos outros anos; o teste original não é adequado para séries com sazonalidade forte.
+
+| Série | Teste | Z | p-valor | Sen | Conclusão (α = 5%) |
+|---|---|---|---|---|---|
+| Temperatura Média Mensal | Mann-Kendall sazonal (período 12) | 1,24 | 0,214 | 0,0247 °C/ano | Sem tendência significativa |
+| Temperatura Máxima Mensal | Mann-Kendall sazonal (período 12) | 3,40 | 6,66 × 10^-4 | 0,1000 °C/ano | Tendência significativa |
+| Temperatura Mínima Mensal | Mann-Kendall sazonal (período 12) | -1,67 | 0,094 | -0,0630 °C/ano | Sem tendência significativa |
+| Precipitação Total Mensal | Mann-Kendall sazonal (período 12) | -1,69 | 0,092 | -1,2000 mm/ano | Sem tendência significativa |
+| Maior Estiagem de Cada Ano | Mann-Kendall original | 0,15 | 0,881 | 0,0000 dias/ano | Sem tendência significativa |
 
 ![Decomposição STL](figures/fig05_decomposicao_stl_temperatura.png)
 
----
+### 3.4 Comparação entre subperíodos (2010-2016 × 2017-2024)
 
-### 3.3. Achado Crítico: Agravamento dos Períodos de Estiagem Prolongada
+**Temperatura (médias anuais):** 22,49 °C × 22,53 °C (diferença de 0,04 °C; Welch p = 0,883; Mann-Whitney p = 0,867). A diferença não é estatisticamente significativa.
 
-O resultado mais expressivo da mineração estatística foi obtido na análise comparativa de **eventos de seca contínua (*consecutive dry days*)**:
+**Estiagens (por evento):** cada sequência ininterrupta de dias sem chuva é uma observação.
 
-| Métrica de Estiagem | Período 1 (2010–2016) | Período 2 (2017–2024) | Significância Estatística |
-|---|---|---|---|
-| **Máximo de Dias Consecutivos Secos** | **64 dias** | **71 dias** | — |
-| **Distribuição de Dias Secos (Mann-Whitney U)** | Média: 4.8 dias | Média: 5.6 dias | **$p = 1.36 \times 10^{-8}$** (Altamente Significante) |
-| **Temperatura Média Diária** | 22.49 °C | 22.53 °C | $p = 0.619$ (Diferença não significante) |
+| Métrica | 2010-2016 | 2017-2024 |
+|---|---|---|
+| Eventos de estiagem | 298 (42,6/ano) | 335 (41,9/ano) |
+| Duração média | 5,3 dias | 6,0 dias |
+| Duração mediana | 3 dias | 3 dias |
+| Maior estiagem | 63 dias | 71 dias |
+| Eventos com 10 dias ou mais | 41 | 51 |
+| Eventos com 30 dias ou mais | 6 | 12 |
+
+Mann-Whitney sobre as durações: **p = 0,314** — a diferença não é estatisticamente significativa. A maior estiagem do estudo ocorreu em **2023 (71 dias)**.
+
+> **Correção metodológica (29/10/2026).** A versão anterior deste relatório comparou o contador diário de dias secos com Mann-Whitney e obteve p ≈ 1,4 × 10^-8, apresentado como “agravamento comprovado”. O contador não é independente: uma estiagem de 40 dias gera 40 valores (1, 2, …, 40), o que infla artificialmente a significância. A comparação correta é por evento, como na tabela acima.
 
 ![Eventos de Estiagem](figures/fig06_eventos_estiagem_dias_secos.png)
 
-> **Conclusão:** Enquanto a média de temperatura pouco se alterou ($+0.04$ °C entre as metades), a duração ininterrupta de períodos sem chuva aumentou de forma comprovada por teste de hipótese ($p < 0.001$), evidenciando **maior irregularidade nas janelas de chuva e aumento do estresse hídrico invernal/primaveril** na região de Bauru.
-
----
-
-### 3.4. Relações Físicas e Matriz de Correlação
+### 3.5 Correlações físicas (escala diária, Pearson)
+- Temperatura máxima × radiação solar: **r = 0,69**
+- Chuva × amplitude térmica: **r = -0,55** (nuvens reduzem o aquecimento diurno)
+- Temperatura média × pressão: **r = -0,59** (massas de ar frio vêm com alta pressão)
+- Umidade média × amplitude térmica: **r = -0,79**
 
 ![Matriz de Correlações](figures/fig04_heatmap_correlacoes.png)
 
-- **Temperatura e Radiação:** Forte correlação positiva ($r \approx +0.67$).
-- **Precipitação e Amplitude Térmica:** Forte correlação inversa ($r \approx -0.42$), demonstrando que dias com chuva estabilizam a amplitude diurna/noturna por cobertura de nuvens.
-- **Pressão de Superfície e Temperatura:** Correlação negativa sazonal marcante (inversões térmicas no inverno associadas a centros de alta pressão).
+---
+
+## 4. Modelo 1 — Temperatura máxima de amanhã (XGBoost Regressor)
+
+- **Alvo:** temperatura máxima do dia seguinte (t+1); 23 variáveis do dia t (condições, médias móveis, *lags*, ciclo anual).
+- **Divisão cronológica:** treino 2010-2021 (4.376 dias); teste cego 2022-2024 (1.096 dias).
+- **Baseline:** persistência (amanhã = hoje).
+
+| Métrica | XGBoost | Persistência | Ganho |
+|---|---|---|---|
+| MAE | 1,51 °C | 1,69 °C | 10,7% |
+| RMSE | 2,05 °C | 2,42 °C | 15,3% |
+| R² | 0,680 | — | — |
+
+Variáveis mais importantes (ganho):
+  1. `temp_max` (43,6% do ganho)
+  2. `temp_mean` (16,3% do ganho)
+  3. `solar_radiation_sum` (5,8% do ganho)
+  4. `precipitation_sum` (3,5% do ganho)
+  5. `thermal_amplitude` (3,0% do ganho)
+
+**Leitura:** o ganho sobre a persistência é real, porém modesto; o modelo demonstra o método e não substitui uma previsão numérica do tempo.
 
 ---
 
-### 3.5. Modelagem Preditiva com Machine Learning (XGBoost) e Aplicabilidade
+## 5. Modelo 2 — Risco de queimada amanhã (XGBoost Classifier)
 
-Para elevar o estudo do diagnóstico puramente descritivo ao nível prescritivo e preditivo, foi incorporado ao pipeline KDD o modelo **XGBoost (*Extreme Gradient Boosting*)**, focado na previsão da **temperatura máxima diária de amanhã ($t+1$)**, variável crítica para monitoramento de ondas de calor em Bauru.
+- **Alvo:** foco de queimada no dia seguinte (t+1), a partir das condições do dia t.
+- **Classe rara:** prevalência de 1,8% no treino (65 dias positivos); `scale_pos_weight` = 55,18.
+- **Divisão:** treino até 2019 (3652 dias), validação 2020–2021 (731), teste 2022-2025 (1461 dias, 30 positivos).
+- **Calibração:** Platt scaling ajustado na validação.
 
-#### 3.5.1. Características Algorítmicas do Modelo
-* **Arquitetura Baseada em Gradiente:** O modelo combina 250 árvores de decisão em profundidade rasa (`max_depth=4`), onde cada nova árvore corrige os resíduos de predição do estágio anterior através do gradiente da função de perda quadrática.
-* **Captura de Não-Linearidades e Inércia Térmica:** A atmosfera não reage de forma puramente linear; o XGBoost é capaz de mapear que um aumento de radiação solar em dias de solo seco (baixa umidade) produz um salto térmico diurno muito mais agressivo do que o mesmo aumento em dias úmidos pós-chuva.
-* **Desempenho no Teste Fora da Amostra (2022 a 2024 – 1.096 dias):**
-  * **MAE (Erro Médio Absoluto):** **$1,50\text{ °C}$** (redução de erro de **$9,61\%$** sobre o modelo ingênuo de persistência).
-  * **RMSE:** $2,03\text{ °C}$ (redução de $13,31\%$).
-  * **$R^2$ Score:** **$0,682$**, atestando forte capacidade preditiva em 3 anos completos de dados nunca vistos pelo modelo.
-* **Fatores Mais Determinantes para a IA (*Feature Importance*):**
-  1. Temperatura máxima observada hoje ($42,4\%$ de ganho).
-  2. Temperatura média do dia ($15,6\%$).
-  3. Integral diária de radiação solar incidente ($7,7\%$).
-  4. Amplitude térmica diurna ($3,7\%$).
-  5. Umidade mínima do ar ($3,2\%$).
+| Métrica (teste) | Valor | Referência |
+|---|---|---|
+| ROC-AUC | 0,763 | 0,5 = acaso |
+| PR-AUC | 0,048 | 0,021 = acaso (prevalência) |
+| Brier (calibrado) | 0,0200 | 0,0201 = sempre prever a taxa-base |
+| Brier Skill Score | 0,007 | > 0 = melhor que a taxa-base |
 
-#### 3.5.2. Aplicabilidade do Modelo no Estudo de Bauru/SP
-1. **Sinergia com o Agravamento de Estiagens (Achado Central do KDD):**
-   * O estudo revelou que as estiagens contínuas em Bauru aumentaram significativamente, atingindo até **71 dias ininterruptos sem chuva**. Nesses períodos de seca severa, o céu permanece limpo por semanas, gerando picos extremos de radiação e amplitudes térmicas diurnas que superam 15 °C.
-   * O XGBoost demonstrou precisão ímpar nesses cenários porque as variáveis de **radiação solar ($7,7\%$ de ganho)**, **amplitude térmica ($3,7\%$)** e **umidade mínima ($3,2\%$)** são integradas dinamicamente para antecipar a intensidade do calor do dia seguinte.
-2. **Mitigação de Riscos na Saúde Pública e Defesa Civil:**
-   * Permite antecipar dias em que as temperaturas ultrapassarão limiares críticos de saúde ($32\text{ °C}$ e $36\text{ °C}$), viabilizando avisos preventivos para hospitais, escolas e grupos vulneráveis a desidratação e estresse térmico.
-3. **Manejo Agroclimático e Gestão Energética:**
-   * Produtores rurais da região de Bauru podem estimar antecipadamente a taxa de evapotranspiração para otimizar o uso da água de irrigação, enquanto concessionárias de energia podem prever picos de demanda no sistema elétrico associados à climatização urbana.
+**Leitura:** o modelo é útil para **ordenar** os dias por risco (índice relativo), mas as probabilidades calibradas variam pouco em torno da taxa-base. No app, o escore do modelo ponderado é apresentado como **índice de risco relativo**, e não como probabilidade.
 
 ---
 
-## 4. Limitações Metodológicas do Estudo
+## 6. Limitações
 
-1. **Dados de Reanálise (ERA5/ERA5-Land):**
-   Os dados são provenientes de modelos físico-matemáticos globais com assimilação de satélites e estações de grande escala. Não representam medições pontuais de sensores físicos no solo.
-2. **Resolução Espacial da Grade:**
-   O grid da reanálise possui espaçamento horizontal de aproximadamente 9 a 25 km, o que suaviza variações locais de relevo e efeitos de ilhas de calor urbanas intra-municipais.
-3. **Horizonte Temporal (15 Anos):**
-   Embora robusto para KDD contemporâneo (2010 a 2024), climatologias canônicas da OMM tradicionalmente recomendam séries de 30 anos (ex.: 1991–2020) para determinação de normais climatológicas definitivas.
+1. **Reanálise, não medição:** grade de ~9–25 km; não representa um sensor pontual nem ilhas de calor urbanas.
+2. **Horizonte de 15 anos:** curto para tendências climáticas (a OMM usa normais de 30 anos).
+3. **Rótulo de queimada ruidoso:** a ausência de foco detectado não garante ausência de fogo (nuvens, resolução e horário de passagem do satélite).
+4. **Dados ao vivo no app:** a previsão de amanhã usa previsão numérica ou o sensor do IPMet como entrada, e não a reanálise usada no treino.
 
----
+## 7. Trabalhos Futuros
 
-## 5. Recomendações e Trabalhos Futuros
-
-1. **Validação Cruzada Local:** Integrar os dados da reanálise com as medições de superfície da estação meteorológica do **IPMet / Unesp Bauru** e da estação do INMET mais próxima para calibração de viés (*bias correction*).
-2. **Modelagem Preditiva de Estiagem:** Treinar modelos de aprendizado de máquina (Gradient Boosting / Random Forest) para prever a probabilidade de início de estiagens críticas com antecedência de 15 a 30 dias.
-3. **Integração com Séries de Focos de Calor:** Cruzar os períodos de dias secos superiores a 30 dias com o banco de dados de queimadas (INPE/BDQueimadas) para avaliar o risco de incêndios no cerrado paulista.
+1. Correção de viés da reanálise com o histórico da estação IPMet/UNESP (ex.: *quantile mapping*).
+2. Validação cruzada temporal e SHAP no regressor; comparação com a previsão da Open-Meteo para o dia seguinte.
+3. Modelo de queimada com janelas de vários dias e área ampliada (município + vizinhos), para mais eventos positivos.
+4. Estender a série para 30 anos ou mais (ERA5 desde 1940).

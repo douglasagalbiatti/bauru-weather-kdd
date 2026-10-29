@@ -1,6 +1,6 @@
-variable,trend,hypothesis_p_value,z_score,tau,sens_slope,has_statistically_significant_trend
-Temperatura Média Mensal,no trend,0.566653681723551,0.5729867259091652,0.028729281767955802,0.0017280125895051683,False
-Temperatura Máxima Mensal,no trend,0.07827879906254176,1.7607613795818096,0.08815224063842848,0.007615898550724608,False
-Temperatura Mínima Mensal,no trend,0.49433651666725176,-0.6834278660392826,-0.03425414364640884,-0.004880753713552163,False
-Precipitação Total Mensal,no trend,0.1480136664141618,-1.4465832993935994,-0.07243707796193984,-0.127216610549944,False
-Máximo de Dias Secos Consecutivos,no trend,0.48593498709462346,0.6967887827160859,0.03486801718845918,0.0,False
+variable,test,n,trend,hypothesis_p_value,z_score,tau,sens_slope,has_statistically_significant_trend
+Temperatura Média Mensal,Mann-Kendall sazonal (período 12),180,no trend,0.2139204809298949,1.2428571428571429,0.06984126984126984,0.02470139204282399,False
+Temperatura Máxima Mensal,Mann-Kendall sazonal (período 12),180,increasing,0.0006661936590013351,3.403126756906641,0.18968253968253967,0.10000000000000092,True
+Temperatura Mínima Mensal,Mann-Kendall sazonal (período 12),180,no trend,0.09443506080795117,-1.6724528357907202,-0.09365079365079365,-0.06304545454545457,False
+Precipitação Total Mensal,Mann-Kendall sazonal (período 12),180,no trend,0.09181769661540051,-1.6858863237088875,-0.09444444444444444,-1.2000000000000015,False
+Maior Estiagem de Cada Ano,Mann-Kendall original,15,no trend,0.8811571477183873,0.14950248619164647,0.0380952380952381,0.0,False
