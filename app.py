@@ -768,7 +768,7 @@ with tab1:
     )
     fig_clim.update_yaxes(title_text="Precipitação (mm)", secondary_y=False)
     fig_clim.update_yaxes(title_text="Temperatura (°C)", secondary_y=True)
-    st.plotly_chart(fig_clim, use_container_width=True)
+    st.plotly_chart(fig_clim, width="stretch")
 
     st.markdown(
         """
@@ -793,7 +793,7 @@ with tab1:
         category_orders={"mes_nome": month_names},
     )
     fig_box.update_layout(margin=dict(l=40, r=40, t=50, b=40))
-    st.plotly_chart(fig_box, use_container_width=True)
+    st.plotly_chart(fig_box, width="stretch")
 
 # ------------------------------------------
 # ABA 2: TENDÊNCIAS & ANOMALIAS TÉRMICAS
@@ -840,12 +840,12 @@ with tab2:
     )
 
     fig_anom.update_layout(
-        title="<b>Histórico de Anomalias Mensais de Temperatura (2010–2024)</b>",
+        title=f"<b>Histórico de Anomalias Mensais de Temperatura ({year_range[0]}–{year_range[1]})</b>",
         yaxis_title="Anomalia de Temperatura (°C)",
         margin=dict(l=40, r=40, t=50, b=40),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
-    st.plotly_chart(fig_anom, use_container_width=True)
+    st.plotly_chart(fig_anom, width="stretch")
 
     st.write("#### 🧠 Traduzindo a Estatística para a Vida Real:")
     c_stat1, c_stat2 = st.columns(2)
@@ -877,8 +877,10 @@ with tab2:
             if sig_max:
                 st.warning(
                     "⚠️ **Temperaturas máximas em alta:**\n\n"
-                    f"A temperatura máxima mensal tem tendência de {sinal} estatisticamente significativa "
-                    f"({_fmt_p(t_max['hypothesis_p_value'])}; Sen = {_fmt(t_max['sens_slope'], 3)} °C/ano)."
+                    f"A temperatura máxima de cada mês (o dia mais quente) tem tendência de {sinal} estatisticamente "
+                    f"significativa de 2010 a 2024 ({_fmt_p(t_max['hypothesis_p_value'])}; "
+                    f"Sen = {_fmt(t_max['sens_slope'], 3)} °C/ano). Ainda assim, 15 anos é pouco para "
+                    "tendências climáticas, que costumam ser avaliadas em séries de 30 anos."
                 )
             else:
                 st.info(
@@ -925,7 +927,7 @@ with tab3:
         yaxis_title="Dias Consecutivos Sem Chuva",
         margin=dict(l=40, r=40, t=50, b=40),
     )
-    st.plotly_chart(fig_dry, use_container_width=True)
+    st.plotly_chart(fig_dry, width="stretch")
 
     st.write("#### 📊 Comparação entre as Duas Metades do Estudo")
     if _dry_events:
@@ -1252,7 +1254,7 @@ with tab4:
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 margin=dict(l=40, r=40, t=50, b=40),
             )
-            st.plotly_chart(fig_pred, use_container_width=True)
+            st.plotly_chart(fig_pred, width="stretch")
 
         # Gráfico de Feature Importance
         st.write("#### 🔍 O que a IA Considera Mais Importante para Prever o Calor?")
@@ -1283,7 +1285,7 @@ with tab4:
                 color_continuous_scale="Blues",
             )
             fig_feat.update_layout(margin=dict(l=40, r=40, t=50, b=40), coloraxis_showscale=False)
-            st.plotly_chart(fig_feat, use_container_width=True)
+            st.plotly_chart(fig_feat, width="stretch")
 
 # ------------------------------------------
 # ABA 5: QUEIMADAS & RISCO XGBOOST
@@ -1299,17 +1301,33 @@ with tab5:
         <b>INPE (Instituto Nacional de Pesquisas Espaciais)</b>. Um <b>XGBoost Classifier</b> estima o risco de
         <b>foco de queimada amanhã</b> a partir das condições de hoje (estiagem, chuva acumulada, umidade, calor e vento).
         Como focos são raros, o modelo é apresentado como um <b>índice de risco relativo (0–100)</b>, que ordena os dias
-        do menos ao mais arriscado, acompanhado da <b>probabilidade calibrada</b>, que é a estimativa realista.
+        do menos ao mais arriscado, acompanhado da <b>probabilidade calibrada</b>, que está na escala de probabilidade real.
         </div>
         """,
         unsafe_allow_html=True,
     )
+    if queimadas_metrics.get("brier_skill_score") is not None:
+        st.caption(
+            f"Desempenho no teste cego ({queimadas_metrics.get('periodo_teste', '2022+')}): ROC-AUC = "
+            f"{_fmt(queimadas_metrics['roc_auc'], 2)} (o modelo ordena os dias melhor que o acaso), mas o Brier Skill "
+            f"Score da probabilidade calibrada é {_fmt(queimadas_metrics['brier_skill_score'], 3)}: ela quase não "
+            "melhora em relação a usar sempre a média histórica. Use o índice para comparar dias, não como previsão exata."
+        )
 
-    # Filtragem temporal reativa para queimadas
+    # Filtragem temporal reativa para queimadas. O arquivo anual do INPE do ano corrente
+    # pode ainda não ter sido publicado: seus dias apareceriam como "sem fogo" (falsos zeros),
+    # então a série vai só até o último ano com focos publicados (mesmo critério do modelo).
     if not df_queimadas.empty and "year" in df_queimadas.columns:
+        ultimo_ano_inpe = int(df_queimadas.loc[df_queimadas["has_fire"] == 1, "year"].max())
         f_queimadas = df_queimadas[
-            (df_queimadas["year"] >= year_range[0]) & (df_queimadas["year"] <= year_range[1])
+            (df_queimadas["year"] >= year_range[0])
+            & (df_queimadas["year"] <= min(year_range[1], ultimo_ano_inpe))
         ]
+        if year_range[1] > ultimo_ano_inpe:
+            st.caption(
+                f"Os focos do INPE estão disponíveis até {ultimo_ano_inpe}; os anos seguintes ficam de fora "
+                "até a publicação do arquivo anual."
+            )
     else:
         f_queimadas = df_queimadas
 
@@ -1409,7 +1427,7 @@ with tab5:
         fig_curva.add_hrect(
             y0=70, y1=100, fillcolor="red", opacity=0.07, line_width=0, annotation_text="Faixa de Risco Crítico"
         )
-        st.plotly_chart(fig_curva, use_container_width=True)
+        st.plotly_chart(fig_curva, width="stretch")
 
     # Gráfico 2: Histórico Anual de Queimadas
     st.subheader("📊 Focos Anuais de Queimada Detectados pelo INPE em Bauru")
@@ -1429,7 +1447,7 @@ with tab5:
         )
         fig_ano_focos.update_traces(textposition="outside")
         fig_ano_focos.update_layout(plot_bgcolor="white", margin=dict(l=40, r=40, t=50, b=40))
-        st.plotly_chart(fig_ano_focos, use_container_width=True)
+        st.plotly_chart(fig_ano_focos, width="stretch")
 
     # 4. SIMULADOR INTERATIVO EM TEMPO REAL
     st.subheader("🎛️ Simulador Interativo: Risco de Queimada Amanhã")
@@ -1505,15 +1523,15 @@ with tab5:
         if prob_simulada < 35:
             alerta_cor = "#16a34a"
             alerta_texto = "🟢 BAIXO RISCO DE QUEIMADA"
-            alerta_desc = "Condições desfavoráveis para propagação de fogo."
+            alerta_desc = "O modelo coloca este cenário entre os de menor risco relativo."
         elif prob_simulada < 70:
             alerta_cor = "#ea580c"
             alerta_texto = "🟠 RISCO MODERADO A ALTO DE QUEIMADA"
-            alerta_desc = "Atenção: A estiagem e o ar seco aumentam a vulnerabilidade da vegetação."
+            alerta_desc = "Atenção: estiagem e ar seco elevam o risco relativo em comparação com dias comuns."
         else:
             alerta_cor = "#dc2626"
             alerta_texto = "🔴 RISCO CRÍTICO DE QUEIMADA"
-            alerta_desc = "Perigo extremo: Longo período sem chuva associado à baixa umidade e calor intenso."
+            alerta_desc = "Cenário entre os de maior risco relativo: estiagem longa, umidade baixa e calor."
 
         if queimadas_metrics.get("prevalencia_treino") is not None:
             taxa_base = float(queimadas_metrics["prevalencia_treino"]) * 100
@@ -1535,7 +1553,7 @@ with tab5:
                 <div style="font-size: 0.95rem; color: #334155; font-weight: 600; margin-bottom: 6px;">Índice de risco relativo</div>
                 <div style="font-size: 1.0rem; color: #334155; font-weight: 500;">{alerta_desc}</div>
                 {badge_calibrada}
-                <div style="font-size: 0.85rem; color: #64748b; margin-top: 8px;">O índice ordena o risco (modelo treinado com peso extra para a classe rara) e não é uma probabilidade. A probabilidade calibrada (Platt scaling) é a estimativa realista.</div>
+                <div style="font-size: 0.85rem; color: #64748b; margin-top: 8px;">O índice ordena o risco (modelo treinado com peso extra para a classe rara) e não é uma probabilidade. As faixas 35/70 são referências visuais, não limiares validados. A probabilidade calibrada (Platt scaling) fica próxima da média histórica.</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1575,7 +1593,7 @@ with tab6:
         c3.metric("Viés de pressão", f"{comp['dif_pressure'].mean():+.1f} hPa")
         c4.metric("Viés de vento", f"{comp['dif_wind_speed'].mean():+.1f} km/h")
 
-        st.plotly_chart(grafico_comparacao(comp), use_container_width=True)
+        st.plotly_chart(grafico_comparacao(comp), width="stretch")
 
         with st.expander("ℹ️ Como interpretar as diferenças"):
             st.markdown(
@@ -1588,7 +1606,7 @@ with tab6:
 - O sensor é registrado a cada 30 minutos e agregado por hora; o modelo dá o valor da hora cheia.
                 """
             )
-            st.dataframe(comp.round(1), use_container_width=True)
+            st.dataframe(comp.round(1), width="stretch")
 
 # ------------------------------------------
 # ABA 7: EXPLORADOR DE DADOS
@@ -1660,7 +1678,7 @@ with tab7:
             }
         )
 
-    st.dataframe(display_df, use_container_width=True)
+    st.dataframe(display_df, width="stretch")
 
     csv_bytes = display_df.to_csv(index=False).encode("utf-8")
     st.download_button(

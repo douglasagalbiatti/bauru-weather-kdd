@@ -107,6 +107,8 @@ def plot_monthly_boxplots(df_daily: pd.DataFrame, output_path: Path) -> None:
         data=df_plot,
         x="month_name",
         y="temp_mean",
+        hue="month_name",
+        legend=False,
         palette="coolwarm",
         ax=ax,
         fliersize=3,

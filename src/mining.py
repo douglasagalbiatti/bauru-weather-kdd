@@ -48,7 +48,7 @@ def test_stationarity(series: pd.Series, name: str) -> Dict[str, Any]:
     ADF: H0 = raiz unitária (não estacionária). KPSS: H0 = estacionária.
     """
     clean_series = series.dropna()
-    adf_res = adfuller(clean_series, autolag="AIC")
+    adf_res = adfuller(clean_series, autolag="AIC", result_object=False)
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
