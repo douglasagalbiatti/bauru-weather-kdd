@@ -1,0 +1,9 @@
+[Unit]
+Description=Coleta da estação IPMet/UNESP Bauru a cada 30 minutos (xx:07 e xx:37)
+
+[Timer]
+OnCalendar=*:07,37
+Persistent=true
+
+[Install]
+WantedBy=timers.target

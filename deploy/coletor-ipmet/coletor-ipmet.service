@@ -1,0 +1,10 @@
+[Unit]
+Description=Coleta da estação IPMet/UNESP Bauru e push para o GitHub
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/coletor-ipmet/coletar.sh
+TimeoutStartSec=5min
+Nice=10

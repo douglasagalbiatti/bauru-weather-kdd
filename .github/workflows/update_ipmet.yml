@@ -1,13 +1,14 @@
-name: Coleta da Estação IPMet / UNESP Bauru (runner no Brasil)
+name: Coleta da Estação IPMet / UNESP Bauru (manual, runner no Brasil)
 
-# O site do IPMet só responde a IPs brasileiros. Os runners hospedados do GitHub
-# (ubuntu-latest) ficam nos EUA, por isso este workflow roda num self-hosted runner
-# instalado numa máquina no Brasil, registrado com o rótulo "ipmet-br".
+# O site do IPMet só responde a IPs brasileiros, e os runners hospedados do GitHub
+# ficam nos EUA. A coleta automática agora roda fora do GitHub Actions, num timer de
+# usuário do systemd numa máquina no Brasil (~/coletor-ipmet/coletar.sh, a cada 30 min:
+# o agendador do GitHub pulava a maioria das execuções).
+#
+# Este workflow fica só para coletas manuais (workflow_dispatch) e exige um runner
+# self-hosted [self-hosted, linux] com IP brasileiro.
 
 on:
-  schedule:
-    # A cada 30 minutos (o GitHub pode atrasar execuções agendadas em alguns minutos)
-    - cron: '7,37 * * * *'
   workflow_dispatch:
 
 permissions:

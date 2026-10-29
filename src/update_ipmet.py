@@ -1,6 +1,7 @@
 """
 Coletor da estação IPMet/UNESP Bauru – executado numa máquina com IP brasileiro
-(self-hosted runner do GitHub Actions; ver .github/workflows/update_ipmet.yml).
+(timer de usuário do systemd que chama ~/coletor-ipmet/coletar.sh; coletas manuais
+pelo workflow .github/workflows/update_ipmet.yml).
 
 - Grava a leitura mais recente em data/interim/ipmet_latest.json (lida pelo app.py);
 - Acrescenta a leitura ao histórico data/raw/ipmet/ipmet_readings.csv;
