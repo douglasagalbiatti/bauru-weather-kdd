@@ -250,13 +250,13 @@ def _fetch_open_meteo_live_raw(
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Obtém em tempo real via Open-Meteo Forecast API as condições de hoje
-    e os últimos 7 dias. Dispara exceção em caso de erro para NUNCA cachear falhas (como HTTP 429).
+    e os últimos 30 dias (lags e médias móveis de 7 e 30 dias). Dispara exceção em caso de erro para NUNCA cachear falhas (como HTTP 429).
     """
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": latitude,
         "longitude": longitude,
-        "past_days": 7,
+        "past_days": 30,  # 30 dias para a média móvel de 30 dias (como no treino)
         "forecast_days": 1,
         "daily": [
             "temperature_2m_max",
@@ -323,11 +323,12 @@ def _fetch_open_meteo_live_raw(
 
     # Lags reais
     lag1_temp = float(df_d["temperature_2m_mean"].iloc[-2]) if len(df_d) >= 2 else temp_mean_today
-    lag7_temp = float(df_d["temperature_2m_mean"].iloc[0]) if len(df_d) >= 7 else temp_mean_today
+    lag7_temp = float(df_d["temperature_2m_mean"].iloc[-8]) if len(df_d) >= 8 else temp_mean_today
     lag2_max = float(df_d["temperature_2m_max"].iloc[-3]) if len(df_d) >= 3 else temp_max_today
     lag3_max = float(df_d["temperature_2m_max"].iloc[-4]) if len(df_d) >= 4 else temp_max_today
 
     roll7_temp = float(df_d["temperature_2m_mean"].tail(7).mean())
+    roll30_temp = float(df_d["temperature_2m_mean"].tail(30).mean())
     roll7_rain = float(df_d["precipitation_sum"].tail(7).sum())
 
     day_of_year = today_date.dayofyear
@@ -347,7 +348,7 @@ def _fetch_open_meteo_live_raw(
         "surface_pressure_mean": pressure_mean_today,
         "solar_radiation_sum": solar_rad_today,
         "temp_mean_roll7": roll7_temp,
-        "temp_mean_roll30": roll7_temp,
+        "temp_mean_roll30": roll30_temp,
         "precip_sum_roll7": roll7_rain,
         "temp_mean_lag1": lag1_temp,
         "temp_mean_lag7": lag7_temp,
@@ -666,12 +667,38 @@ with col4:
 st.write("")
 
 # ==========================================
+# AUXILIARES DE TEXTO (valores lidos de reports/tables/)
+# ==========================================
+def _fmt(x: float, casas: int = 2) -> str:
+    """Número no formato brasileiro."""
+    return f"{x:,.{casas}f}".replace(",", "§").replace(".", ",").replace("§", ".")
+
+
+def _fmt_p(x: float) -> str:
+    """p-valor legível."""
+    return "p < 0,001" if x < 0.001 else f"p = {_fmt(x, 3)}"
+
+
+def _trend(nome: str) -> Dict[str, Any]:
+    """Resultado do Mann-Kendall para uma série do relatório estatístico."""
+    for t in stats_report.get("mann_kendall_trends", []):
+        if t.get("variable") == nome:
+            return t
+    return {}
+
+
+_sub = stats_report.get("subperiod_comparison", {})
+_temp_cmp = _sub.get("temperature_mean_c", {})
+_dry_events = _sub.get("dry_spell_events", {})
+
+
+# ==========================================
 # ABAS DE NAVEGAÇÃO
 # ==========================================
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📊 Panorama Climático",
     "🌡️ Tendências & Anomalias",
-    "🌵 Estiagem & Seca (Achado Crítico)",
+    "🌵 Estiagem & Seca",
     "🤖 Inteligência Artificial (XGBoost Clima)",
     "🔥 Queimadas & Risco XGBoost",
     "📡 Sensor × Modelo",
@@ -822,32 +849,57 @@ with tab2:
 
     st.write("#### 🧠 Traduzindo a Estatística para a Vida Real:")
     c_stat1, c_stat2 = st.columns(2)
+    t_media = _trend("Temperatura Média Mensal")
+    t_max = _trend("Temperatura Máxima Mensal")
     with c_stat1:
-        st.success(
-            "✅ **Média Geral Estável:**\n\n"
-            "O teste estatístico formal de *Mann-Kendall* revelou que a temperatura média em Bauru **não apresenta "
-            "uma tendência de aquecimento constante e acelerado** ($p = 0.56$). A média histórica subiu apenas "
-            "**0,04 °C** entre o primeiro e o segundo período analisado."
-        )
+        if t_media:
+            sig_media = t_media.get("has_statistically_significant_trend", False)
+            texto_media = (
+                f"O teste de *{t_media.get('test', 'Mann-Kendall')}* "
+                + ("**encontrou** " if sig_media else "**não encontrou** ")
+                + f"tendência estatisticamente significativa na temperatura média mensal de 2010 a 2024 "
+                f"({_fmt_p(t_media['hypothesis_p_value'])})."
+            )
+            if _temp_cmp:
+                texto_media += (
+                    f" Entre {_sub.get('period_1_years', '2010-2016')} e {_sub.get('period_2_years', '2017-2024')}, "
+                    f"a média variou **{_fmt(_temp_cmp['difference'], 2)} °C** "
+                    f"({_fmt_p(_temp_cmp['ttest_p_value'])}, médias anuais)."
+                )
+            (st.warning if sig_media else st.success)(
+                ("⚠️ **Temperatura média em alta:**" if sig_media else "✅ **Temperatura média estável:**")
+                + "\n\n" + texto_media
+            )
     with c_stat2:
-        st.warning(
-            "⚠️ **Atenção aos Picos Extremos:**\n\n"
-            "Embora a média seja estável, as **temperaturas máximas diurnas** mostraram tendência positiva moderada. "
-            "Ou seja: quando faz calor, as ondas de calor têm atingido patamares pontualmente mais elevados e desconfortáveis."
-        )
+        if t_max:
+            sig_max = t_max.get("has_statistically_significant_trend", False)
+            sinal = "alta" if t_max["sens_slope"] > 0 else "queda"
+            if sig_max:
+                st.warning(
+                    "⚠️ **Temperaturas máximas em alta:**\n\n"
+                    f"A temperatura máxima mensal tem tendência de {sinal} estatisticamente significativa "
+                    f"({_fmt_p(t_max['hypothesis_p_value'])}; Sen = {_fmt(t_max['sens_slope'], 3)} °C/ano)."
+                )
+            else:
+                st.info(
+                    "ℹ️ **Temperaturas máximas:**\n\n"
+                    f"Há um sinal de {sinal} (Sen = {_fmt(t_max['sens_slope'], 3)} °C/ano), mas **sem significância "
+                    f"estatística** ({_fmt_p(t_max['hypothesis_p_value'])}). Vale monitorar: 15 anos é pouco para "
+                    "tendências climáticas, que costumam ser avaliadas em séries de 30 anos."
+                )
 
 # ------------------------------------------
-# ABA 3: ESTIAGEM & SECA (ACHADO CRÍTICO)
+# ABA 3: ESTIAGEM & SECA
 # ------------------------------------------
 with tab3:
-    st.subheader("O Achado Crítico: Estiagens Mais Longas e Severas")
+    st.subheader("Estiagens em Bauru: Duração, Recordes e o que os Testes Dizem")
     st.markdown(
         """
         <div class="explanation-box">
         💡 <b>Entendendo os Dias Consecutivos Sem Chuva:</b><br>
-        Esta métrica conta quantos dias seguidos a cidade ficou sem registrar sequer 1 mm de chuva. 
-        Quando esse número ultrapassa <b>30 dias</b>, o risco de queimadas no cerrado paulista e a umidade do ar caem a níveis críticos. 
-        Quando supera <b>60 dias</b>, o abastecimento e a agricultura entram em estresse severo.
+        Esta métrica conta quantos dias seguidos a cidade ficou sem registrar ao menos 1 mm de chuva.
+        Neste painel, <b>30 dias</b> e <b>60 dias</b> são usados como limiares de referência para estiagem
+        prolongada e severa: nesses períodos a umidade do ar cai e o risco de queimadas aumenta.
         </div>
         """,
         unsafe_allow_html=True,
@@ -875,24 +927,39 @@ with tab3:
     )
     st.plotly_chart(fig_dry, use_container_width=True)
 
-    st.write("#### 📊 Comparação Científica entre as Duas Metades do Estudo:")
-    col_d1, col_d2 = st.columns(2)
-
-    with col_d1:
-        st.info(
-            "📅 **Primeira Metade (2010 a 2016):**\n\n"
-            "* Recorde de seca ininterrupta: **64 dias**.\n"
-            "* As chuvas na primavera retornavam com maior pontualidade.\n"
-            "* Menor incidência de estresses hídricos extremos."
+    st.write("#### 📊 Comparação entre as Duas Metades do Estudo")
+    if _dry_events:
+        ev1, ev2 = _dry_events["period_1"], _dry_events["period_2"]
+        col_d1, col_d2 = st.columns(2)
+        for col, ev in ((col_d1, ev1), (col_d2, ev2)):
+            with col:
+                st.info(
+                    f"📅 **{ev['years'].replace('-', ' a ')}:**\n\n"
+                    f"* Eventos de estiagem: **{ev['n_events']}** ({_fmt(ev['events_per_year'], 1)} por ano).\n"
+                    f"* Duração média: **{_fmt(ev['mean_duration_days'], 1)} dias** (mediana {_fmt(ev['median_duration_days'], 0)}).\n"
+                    f"* Maior estiagem: **{ev['max_duration_days']} dias**.\n"
+                    f"* Eventos com 10 dias ou mais: **{ev['n_events_10_days_or_more']}**; com 30 ou mais: "
+                    f"**{ev['n_events_30_days_or_more']}**."
+                )
+        p_ev = _dry_events["mann_whitney_duration_p_value"]
+        if _dry_events.get("statistically_different"):
+            st.warning(
+                f"🧪 **O que o teste diz:** a duração das estiagens difere entre os períodos "
+                f"(Mann-Whitney, {_fmt_p(p_ev)})."
+            )
+        else:
+            st.success(
+                f"🧪 **O que o teste diz:** apesar do recorde de {ev2['max_duration_days']} dias na segunda metade, "
+                f"**não há evidência estatística de que as estiagens tenham ficado mais longas** "
+                f"(Mann-Whitney sobre a duração dos eventos, {_fmt_p(p_ev)})."
+            )
+        st.caption(
+            "Cada sequência ininterrupta de dias sem chuva conta como uma observação. Comparar o contador diário "
+            "(1, 2, 3, … dentro de um mesmo evento) violaria a hipótese de independência do teste e "
+            "exageraria a significância."
         )
-
-    with col_d2:
-        st.error(
-            "📅 **Segunda Metade (2017 a 2024):**\n\n"
-            "* Recorde de seca ininterrupta: **71 dias**.\n"
-            "* Teste estatístico não-paramétrico comprovou agravamento com certeza científica (**p = 0,00000001**).\n"
-            "* Períodos de estiagem mais longos e janelas de chuva mais concentradas."
-        )
+    else:
+        st.info("Execute `python src/reprocessar_pipeline.py` para gerar a comparação por eventos de estiagem.")
 
 # ------------------------------------------
 # ABA 4: INTELIGÊNCIA ARTIFICIAL (XGBOOST)
@@ -900,12 +967,14 @@ with tab3:
 with tab4:
     st.subheader("🤖 Previsão Meteorológica Preditiva com XGBoost")
     st.markdown(
-        """
+        f"""
         <div class="explanation-box">
         💡 <b>Como a Inteligência Artificial foi treinada?</b><br>
-        Utilizamos o algoritmo <b>XGBoost (Extreme Gradient Boosting)</b>, considerado o estado da arte na meteorologia 
-        para dados tabulares. O modelo aprendeu com <b>12 anos de histórico (2010 a 2021 - 4.380 dias)</b> e foi testado 
-        "às cegas" em <b>3 anos recentes (2022 a 2024 - 1.096 dias)</b> para prever a <b>Temperatura Máxima de Amanhã</b>.
+        Utilizamos o algoritmo <b>XGBoost (Extreme Gradient Boosting)</b>, um dos métodos mais eficazes para dados
+        tabulares. O modelo aprendeu com o histórico de <b>{ml_metrics.get('train_period', '2010-2021').replace('-', ' a ', 1)}</b>
+        e foi testado "às cegas" em <b>{ml_metrics.get('test_period', '2022-2024').replace('-', ' a ', 1)}</b>
+        para prever a <b>Temperatura Máxima de Amanhã</b>. A referência de comparação é a persistência
+        ("amanhã será igual a hoje").
         </div>
         """,
         unsafe_allow_html=True,
@@ -1026,9 +1095,9 @@ with tab4:
         if is_contingency:
             context_msg = f"Inferência de contingência baseada nos dados consolidados do dia {live_summary['date']} e na inércia dos 7 dias anteriores da base local."
         elif "ipmet" in status:
-            context_msg = f"Cálculo automatizado com base nos sensores físicos da Estação Meteorológica do IPMet/UNESP Bauru ({live_summary['date']}) e na inércia temporal dos últimos 7 dias."
+            context_msg = f"Cálculo automatizado com base nos sensores físicos da Estação Meteorológica do IPMet/UNESP Bauru ({live_summary['date']}) e na inércia temporal dos últimos 30 dias."
         else:
-            context_msg = "Cálculo automatizado com base nos dados meteorológicos reais de hoje e na inércia dos últimos 7 dias."
+            context_msg = "Cálculo automatizado com base nos dados meteorológicos reais de hoje e na inércia dos últimos 30 dias."
 
         st.write("")
         st.markdown(
@@ -1139,14 +1208,15 @@ with tab4:
         st.write("")
 
         if not df_preds.empty:
-            st.write("#### 🎯 Confronto: Temperatura Máxima Real vs. Previsão da IA (2022–2024)")
-            pred_years = [2022, 2023, 2024]
+            pred_years = sorted({int(a) for a in df_preds.index.year})
+            rotulo_todos = f"Todos os anos de teste: {pred_years[0]} a {pred_years[-1]}"
+            st.write(f"#### 🎯 Confronto: Temperatura Máxima Real vs. Previsão da IA ({pred_years[0]}–{pred_years[-1]})")
             selected_pred_year = st.selectbox(
                 "Filtrar ano de teste para inspeção detalhada:",
-                ["Todos os anos de teste (2022 a 2024)"] + pred_years,
+                [rotulo_todos] + pred_years,
             )
 
-            if selected_pred_year == "Todos os anos de teste (2022 a 2024)":
+            if selected_pred_year == rotulo_todos:
                 plot_preds = df_preds
             else:
                 plot_preds = df_preds[df_preds.index.year == int(selected_pred_year)]
@@ -1224,11 +1294,12 @@ with tab5:
     st.markdown(
         """
         <div class="explanation-box">
-        💡 <b>Queimadas e Estiagem em Bauru (Dados Oficiais INPE 2010 a 2025):</b><br>
-        Esta seção conecta a série histórica meteorológica de Bauru com as detecções do satélite de referência do 
-        <b>INPE (Instituto Nacional de Pesquisas Espaciais)</b>. O algoritmo <b>XGBoost Classifier</b> foi treinado 
-        para aprender o impacto direto dos dias consecutivos sem chuva e do déficit hídrico acumulado na 
-        <b>probabilidade percentual (%) de focos de queimada</b>.
+        💡 <b>Queimadas e Estiagem em Bauru (dados oficiais do INPE):</b><br>
+        Esta seção conecta a série meteorológica de Bauru às detecções do satélite de referência do
+        <b>INPE (Instituto Nacional de Pesquisas Espaciais)</b>. Um <b>XGBoost Classifier</b> estima o risco de
+        <b>foco de queimada amanhã</b> a partir das condições de hoje (estiagem, chuva acumulada, umidade, calor e vento).
+        Como focos são raros, o modelo é apresentado como um <b>índice de risco relativo (0–100)</b>, que ordena os dias
+        do menos ao mais arriscado, acompanhado da <b>probabilidade calibrada</b>, que é a estimativa realista.
         </div>
         """,
         unsafe_allow_html=True,
@@ -1259,22 +1330,29 @@ with tab5:
             unsafe_allow_html=True,
         )
     with col_q3:
-        st.markdown(
-            """<div class="metric-card"><div class="metric-value" style="color: #dc2626;">2011 e 2024</div><div class="metric-label">Anos Críticos (35 focos/ano)</div></div>""",
-            unsafe_allow_html=True,
-        )
+        if not f_queimadas.empty and "year" in f_queimadas.columns and total_focos > 0:
+            focos_ano = f_queimadas.groupby("year")["queimadas_focos_count"].sum()
+            anos_pico = [str(int(a)) for a in focos_ano[focos_ano == focos_ano.max()].index]
+            rotulo_pico = " e ".join(anos_pico)
+            st.markdown(
+                f"""<div class="metric-card"><div class="metric-value" style="color: #dc2626;">{rotulo_pico}</div><div class="metric-label">Ano(s) com mais focos ({int(focos_ano.max())} focos)</div></div>""",
+                unsafe_allow_html=True,
+            )
     with col_q4:
-        st.markdown(
-            """<div class="metric-card"><div class="metric-value" style="color: #16a34a;">79.9%</div><div class="metric-label">ROC-AUC (Poder Preditivo)</div></div>""",
-            unsafe_allow_html=True,
-        )
+        if queimadas_metrics.get("roc_auc") is not None:
+            st.markdown(
+                f"""<div class="metric-card"><div class="metric-value" style="color: #16a34a;">{_fmt(queimadas_metrics['roc_auc'], 2)}</div><div class="metric-label">ROC-AUC (ordenação dos dias de risco)</div></div>""",
+                unsafe_allow_html=True,
+            )
 
     st.write("")
 
     # Gráfico 1: Curva de Probabilidade Calculada pelo XGBoost
-    st.subheader("📈 Curva de Sensibilidade: Probabilidade de Queimada vs. Dias de Estiagem")
+    st.subheader("📈 Sensibilidade do Modelo à Estiagem (cenário simulado)")
     st.markdown(
-        "Observe no gráfico abaixo como a probabilidade calculada pelo **XGBoost** reage ao aumento dos dias sem chuva contínuos em Bauru:"
+        "Cenário sintético de agosto: os dias sem chuva aumentam e a umidade cai junto, com as demais condições fixas. "
+        "A linha vermelha é o **índice de risco relativo** (escala da esquerda); a azul é a **probabilidade calibrada "
+        "de foco no dia seguinte** (escala da direita). O gráfico mostra como o modelo reage, não uma relação causal."
     )
 
     if curva_risco:
@@ -1282,12 +1360,13 @@ with tab5:
         fig_curva = go.Figure()
 
         # Linha 1: Índice de Risco Relativo (Escala Ponderada de Alerta)
+        col_indice = "indice_risco_relativo" if "indice_risco_relativo" in df_curva.columns else "chance_queimada_percentual"
         fig_curva.add_trace(
             go.Scatter(
                 x=df_curva["dias_estiagem"],
-                y=df_curva["chance_queimada_percentual"],
+                y=df_curva[col_indice],
                 mode="lines+markers",
-                name="Índice de Risco / Alerta (XGBoost %)",
+                name="Índice de risco relativo (0–100)",
                 line=dict(color="#dc2626", width=3),
                 marker=dict(size=7),
             )
@@ -1300,18 +1379,23 @@ with tab5:
                     x=df_curva["dias_estiagem"],
                     y=df_curva["probabilidade_calibrada_percentual"],
                     mode="lines+markers",
-                    name="Probabilidade Real Calibrada (Taxa ao Dia %)",
+                    name="Probabilidade calibrada de foco amanhã (%)",
                     line=dict(color="#2563eb", width=3, dash="dash"),
                     marker=dict(size=7),
+                    yaxis="y2",
                 )
             )
 
         fig_curva.update_layout(
-            title="Chance Percentual Calculada pelo XGBoost vs. Dias Consecutivos de Estiagem",
+            title="Índice de Risco e Probabilidade Calibrada vs. Dias Consecutivos sem Chuva",
             plot_bgcolor="white",
             hovermode="x unified",
             xaxis=dict(title="Dias Consecutivos sem Chuva (Estiagem Contínua)"),
-            yaxis=dict(range=[0, 100], ticksuffix="%"),
+            yaxis=dict(range=[0, 100], title="Índice de risco relativo"),
+            yaxis2=dict(
+                title="Probabilidade calibrada (%)", overlaying="y", side="right", rangemode="tozero",
+                ticksuffix="%", showgrid=False,
+            ),
             margin=dict(l=40, r=40, t=50, b=40),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
@@ -1348,9 +1432,9 @@ with tab5:
         st.plotly_chart(fig_ano_focos, use_container_width=True)
 
     # 4. SIMULADOR INTERATIVO EM TEMPO REAL
-    st.subheader("🎛️ Simulador Interativo: Calcule a Chance de Queimada com o XGBoost")
+    st.subheader("🎛️ Simulador Interativo: Risco de Queimada Amanhã")
     st.markdown(
-        "Ajuste os parâmetros atmosféricos abaixo para rodar a inferência do modelo treinado em tempo real:"
+        "Ajuste as condições de hoje para ver como o modelo avalia o risco de foco de queimada amanhã:"
     )
 
     sim_col1, sim_col2, sim_col3 = st.columns(3)
@@ -1431,11 +1515,15 @@ with tab5:
             alerta_texto = "🔴 RISCO CRÍTICO DE QUEIMADA"
             alerta_desc = "Perigo extremo: Longo período sem chuva associado à baixa umidade e calor intenso."
 
+        if queimadas_metrics.get("prevalencia_treino") is not None:
+            taxa_base = float(queimadas_metrics["prevalencia_treino"]) * 100
+        else:
+            taxa_base = float(df_queimadas["has_fire"].mean()) * 100 if not df_queimadas.empty else 0.0
         badge_calibrada = ""
         if prob_calibrada is not None:
             badge_calibrada = f"""
             <div style="margin-top: 10px; padding: 6px 14px; background: #e0f2fe; border: 1px solid #7dd3fc; border-radius: 8px; display: inline-block; font-size: 0.95rem; color: #0369a1; font-weight: 600;">
-                📊 Probabilidade Real Calibrada (Taxa ao Dia): {prob_calibrada:.2f}%
+                📊 Probabilidade calibrada de foco amanhã: {prob_calibrada:.1f}% (média histórica: {taxa_base:.1f}% dos dias)
             </div>
             """
 
@@ -1443,10 +1531,11 @@ with tab5:
             f"""
             <div style="background-color: #f8fafc; border: 2px solid {alerta_cor}; border-radius: 12px; padding: 22px; text-align: center; margin-top: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.06);">
                 <div style="font-size: 1.2rem; font-weight: 800; color: {alerta_cor};">{alerta_texto}</div>
-                <div style="font-size: 3.2rem; font-weight: 900; color: {alerta_cor}; margin: 8px 0;">{prob_simulada:.1f}%</div>
+                <div style="font-size: 3.2rem; font-weight: 900; color: {alerta_cor}; margin: 8px 0;">{prob_simulada:.0f}<span style="font-size: 1.4rem; font-weight: 700;"> / 100</span></div>
+                <div style="font-size: 0.95rem; color: #334155; font-weight: 600; margin-bottom: 6px;">Índice de risco relativo</div>
                 <div style="font-size: 1.0rem; color: #334155; font-weight: 500;">{alerta_desc}</div>
                 {badge_calibrada}
-                <div style="font-size: 0.85rem; color: #64748b; margin-top: 8px;">Índice de alerta ponderado pelo scale_pos_weight e probabilidade real calibrada por Platt Scaling</div>
+                <div style="font-size: 0.85rem; color: #64748b; margin-top: 8px;">O índice ordena o risco (modelo treinado com peso extra para a classe rara) e não é uma probabilidade. A probabilidade calibrada (Platt scaling) é a estimativa realista.</div>
             </div>
             """,
             unsafe_allow_html=True,

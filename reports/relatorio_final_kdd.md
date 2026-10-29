@@ -1,3 +1,7 @@
+> ⚠️ **Versão desatualizada — aguardando reprocessamento (29/10/2026).** Uma revisão encontrou três problemas que afetam este texto:
+> (1) a carga 2010–2024 estava em UTC, e não em horário local; (2) o “achado crítico” das estiagens usou um teste inválido (contador diário não independente) — por evento, a diferença entre os períodos não é significativa; (3) o modelo de queimada era treinado com o alvo do mesmo dia.
+> O código já foi corrigido. Rode `python src/reprocessar_pipeline.py` para refazer os resultados; este arquivo será regenerado automaticamente com os números corretos.
+
 # Relatório Final – Descoberta de Conhecimento em Séries Temporais Meteorológicas (Bauru/SP)
 
 **Metodologia:** KDD (*Knowledge Discovery in Databases*)  

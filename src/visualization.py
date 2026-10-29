@@ -240,6 +240,10 @@ def generate_all_visualizations(
     df_daily = pd.read_parquet(daily_parquet)
     df_monthly = pd.read_parquet(monthly_parquet)
 
+    # As figuras descrevem a janela fixa do estudo (2010–2024), como dizem os títulos
+    df_daily = df_daily[(df_daily.index.year >= 2010) & (df_daily.index.year <= 2024)]
+    df_monthly = df_monthly[(df_monthly.index.year >= 2010) & (df_monthly.index.year <= 2024)]
+
     print("1. Gerando Climograma...")
     plot_climograph(df_monthly, out_path / "fig01_climograma_bauru.png")
 

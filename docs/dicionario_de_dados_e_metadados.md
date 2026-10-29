@@ -6,7 +6,7 @@
 * **Coordenadas Solicitadas:** Latitude `-22.3147`, Longitude `-49.0608`
 * **Ponto de Grade (Grid ERA5):** Latitude `-22.31986°`, Longitude `-49.04858°`
 * **Elevação do Grid:** `521.0 metros`
-* **Fuso Horário:** `America/Sao_Paulo` (UTC-03:00 / offset `-10800` segundos)
+* **Fuso Horário:** `America/Sao_Paulo` (UTC-03:00 / offset `-10800` segundos). O índice temporal de todas as bases está em **horário local padrão (UTC−03:00)**; a carga histórica antiga, gravada em UTC, é corrigida automaticamente no pré-processamento.
 * **Período Coberto:** `2010-01-01 00:00:00` a `2024-12-31 23:00:00` (15 anos)
 * **Total de Registros Horários:** 131.496 linhas
 * **Endpoint de Coleta:** `https://archive-api.open-meteo.com/v1/archive`
@@ -18,7 +18,7 @@
 
 | Variável | Tipo | Unidade | Descrição Física | Limites Válidos |
 |---|---|---|---|---|
-| `date` | `datetime64[ns]` | ISO 8601 | Timestamp da observação horária | 2010 a 2024 |
+| `date` | `datetime64[ns]` | ISO 8601 | Timestamp da observação horária, em horário local padrão (UTC−03:00) | 2010 em diante |
 | `temperature_2m` | `float64` | °C | Temperatura do ar a 2 metros do solo | -5.0 a 48.0 |
 | `relative_humidity_2m` | `float64` | % | Umidade relativa do ar a 2 metros | 0.0 a 100.0 |
 | `precipitation` | `float64` | mm | Precipitação líquida horária acumulada | $\ge 0.0$ |
@@ -69,9 +69,17 @@
 | `colsample_bytree` | 0.85 | Fração de variáveis físicas sorteadas por divisão de nó |
 | `random_state` | 42 | Semente para reprodutibilidade estrita |
 
-### 4.4. Tabela de Métricas Obtidas no Teste Cego (2022–2024)
-| Métrica de Avaliação | XGBoost Regressor | Baseline (Persistência $y_t$) | Ganho do Modelo |
-|---|---|---|---|
-| **MAE (Erro Médio Absoluto)** | **1,50 °C** | 1,66 °C | **+9,61%** |
-| **RMSE (Raiz do Erro Quadrático)** | **2,03 °C** | 2,34 °C | **+13,31%** |
-| **Coeficiente $R^2$** | **0,682** | — | — |
+### 4.4. Métricas
+As métricas do teste cego são geradas a cada treino em `reports/tables/ml_evaluation_metrics.json` e reproduzidas em `reports/relatorio_final_kdd.md`. O período de teste é fixo (2022–2024), para que as métricas permaneçam comparáveis enquanto a base cresce.
+
+---
+
+## 5. Especificação do Modelo de Risco de Queimada (XGBoost Classifier)
+
+* **Tarefa:** classificação binária com classe rara (≈ 2% dos dias).
+* **Variável Alvo:** `target_fire_next_day` — houve ao menos um foco do INPE em Bauru no dia seguinte (t+1). As variáveis explicativas são do dia t.
+* **Datas dos focos:** convertidas de UTC para horário local (UTC−03:00) antes de agregar por dia.
+* **Divisão cronológica:** treino até 2019, validação 2020–2021 (calibração de Platt), teste de 2022 até o último ano com focos publicados pelo INPE.
+* **Desbalanceamento:** `scale_pos_weight` = negativos ÷ positivos do treino.
+* **Saídas:** o escore do modelo ponderado é um **índice de risco relativo (0–100)**, útil para ordenar os dias; a **probabilidade calibrada** é a estimativa realista de foco no dia seguinte.
+* **Métricas:** ROC-AUC, PR-AUC (referência: prevalência), Brier calibrado e Brier Skill Score em relação à taxa-base — em `reports/tables/queimadas_metricas.json`.

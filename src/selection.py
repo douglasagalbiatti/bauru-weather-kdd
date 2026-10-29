@@ -95,13 +95,19 @@ def fetch_raw_weather_data(
 
     hourly = response.Hourly()
 
-    # Reconstrução do eixo temporal
+    # Reconstrução do eixo temporal em HORÁRIO LOCAL.
+    # A API devolve os instantes em segundos Unix (UTC), mesmo com o parâmetro `timezone`.
+    # Somar o deslocamento da resposta (-10800 s em Bauru) gera horários locais padrão
+    # (UTC-03:00), o mesmo referencial das atualizações incrementais em JSON.
+    # Sem essa soma, o índice ficava em UTC e cada "dia" ia das 21h às 21h locais.
+    utc_offset = response.UtcOffsetSeconds()
     time_series = pd.date_range(
-        start=pd.to_datetime(hourly.Time(), unit="s", utc=False),
-        end=pd.to_datetime(hourly.TimeEnd(), unit="s", utc=False),
+        start=pd.to_datetime(hourly.Time() + utc_offset, unit="s"),
+        end=pd.to_datetime(hourly.TimeEnd() + utc_offset, unit="s"),
         freq=pd.Timedelta(seconds=hourly.Interval()),
         inclusive="left",
     )
+    metadata["time_reference"] = "horario_local_padrao_utc-03:00"
 
     data: Dict[str, Any] = {"date": time_series}
 

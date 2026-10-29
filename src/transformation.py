@@ -10,6 +10,9 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
+# Período de referência da climatologia (anos completos do estudo)
+CLIMATOLOGY_BASE = (2010, 2024)
+
 
 def get_southern_hemisphere_season(month: int) -> str:
     """
@@ -88,6 +91,37 @@ def build_daily_features(df_hourly: pd.DataFrame) -> pd.DataFrame:
     return daily
 
 
+def extract_dry_spell_events(df_daily: pd.DataFrame) -> pd.DataFrame:
+    """
+    Converte o contador diário de dias secos em EVENTOS de estiagem:
+    uma linha por sequência ininterrupta de dias sem chuva (< 1 mm).
+
+    É a unidade correta para comparar estiagens entre períodos: o contador diário
+    não é independente (um evento de 40 dias gera 40 valores 1, 2, ..., 40), o que
+    viola a hipótese dos testes de hipótese e infla a significância.
+    """
+    counter = df_daily["consecutive_dry_days"]
+    events = []
+    start = None
+    prev_date = None
+    prev_val = 0
+    for date, val in counter.items():
+        if val == 1:
+            if prev_val > 0 and start is not None:
+                events.append((start, prev_date, int(prev_val)))
+            start = date
+        elif val == 0 and prev_val > 0 and start is not None:
+            events.append((start, prev_date, int(prev_val)))
+            start = None
+        prev_date, prev_val = date, val
+    if prev_val > 0 and start is not None:
+        events.append((start, prev_date, int(prev_val)))
+
+    df_events = pd.DataFrame(events, columns=["start", "end", "duration_days"])
+    df_events["year"] = df_events["start"].dt.year
+    return df_events
+
+
 def build_monthly_climatology(df_daily: pd.DataFrame) -> pd.DataFrame:
     """
     Agrega os dados diários em mensais e calcula anomalias em relação à climatologia 2010-2024.
@@ -110,12 +144,12 @@ def build_monthly_climatology(df_daily: pd.DataFrame) -> pd.DataFrame:
     monthly["humidity_mean"] = df_daily["humidity_mean"].resample("MS").mean()
     monthly["wind_speed_mean"] = df_daily["wind_speed_mean"].resample("MS").mean()
 
-    # Climatologia base do período (médias normais de cada um dos 12 meses)
-    climatology_temp = monthly.groupby("month")["temp_mean"].transform("mean")
-    climatology_precip = monthly.groupby("month")["precipitation_total"].transform("mean")
-
-    monthly["temp_climatology_mean"] = climatology_temp
-    monthly["precip_climatology_mean"] = climatology_precip
+    # Climatologia de referência FIXA (2010–2024, anos completos do estudo).
+    # Com a base crescendo a cada dia, calcular a média sobre todos os meses faria a
+    # referência mudar e meses incompletos distorceriam a climatologia.
+    base = monthly[(monthly["year"] >= CLIMATOLOGY_BASE[0]) & (monthly["year"] <= CLIMATOLOGY_BASE[1])]
+    monthly["temp_climatology_mean"] = monthly["month"].map(base.groupby("month")["temp_mean"].mean())
+    monthly["precip_climatology_mean"] = monthly["month"].map(base.groupby("month")["precipitation_total"].mean())
 
     # Anomalias em relação à climatologia
     monthly["temp_anomaly"] = monthly["temp_mean"] - monthly["temp_climatology_mean"]

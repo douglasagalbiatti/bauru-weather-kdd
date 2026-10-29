@@ -14,6 +14,9 @@ import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import xgboost as xgb
 
+TRAIN_END_YEAR = 2021
+TEST_YEARS = (2022, 2024)
+
 
 def prepare_features(df_daily: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
     """
@@ -85,15 +88,17 @@ def train_xgboost_model(
     print("2. Engenharia de features temporais e alvo t+1...")
     X, y = prepare_features(df_daily)
 
-    # Divisão Cronológica: Treino <= 2021 | Teste >= 2022
-    train_mask = X.index.year <= 2021
-    test_mask = X.index.year >= 2022
+    # Divisão Cronológica: Treino 2010–2021 | Teste 2022–2024 (anos completos do estudo).
+    # O teste é fixo: com a base crescendo todo dia, "ano >= 2022" mudaria o conjunto de teste
+    # e as métricas deixariam de ser comparáveis com as publicadas.
+    train_mask = X.index.year <= TRAIN_END_YEAR
+    test_mask = (X.index.year >= TEST_YEARS[0]) & (X.index.year <= TEST_YEARS[1])
 
     X_train, y_train = X[train_mask], y[train_mask]
     X_test, y_test = X[test_mask], y[test_mask]
 
-    print(f"   Treino: {X_train.shape[0]} amostras (2010 a 2021)")
-    print(f"   Teste:  {X_test.shape[0]} amostras (2022 a 2024)")
+    print(f"   Treino: {X_train.shape[0]} amostras ({X_train.index.min().year} a {TRAIN_END_YEAR})")
+    print(f"   Teste:  {X_test.shape[0]} amostras ({TEST_YEARS[0]} a {TEST_YEARS[1]})")
 
     # Baseline Ingênuo de Persistência: temperatura máxima de amanhã = temperatura máxima de hoje
     y_baseline_pred = X_test["temp_max"]
@@ -129,8 +134,12 @@ def train_xgboost_model(
 
     metrics = {
         "model": "XGBoost Regressor (Previsão de Temp. Máxima t+1)",
-        "train_period": "2010-2021 (4.380 dias)",
-        "test_period": "2022-2024 (1.096 dias)",
+        "train_period": f"{X_train.index.min().year}-{TRAIN_END_YEAR} ({X_train.shape[0]:,} dias)".replace(",", "."),
+        "test_period": f"{TEST_YEARS[0]}-{TEST_YEARS[1]} ({X_test.shape[0]:,} dias)".replace(",", "."),
+        "train_years": [int(X_train.index.min().year), TRAIN_END_YEAR],
+        "test_years": list(TEST_YEARS),
+        "n_train": int(X_train.shape[0]),
+        "n_test": int(X_test.shape[0]),
         "xgboost": {
             "mae_celsius": round(float(mae_xgb), 3),
             "rmse_celsius": round(float(rmse_xgb), 3),
@@ -142,6 +151,9 @@ def train_xgboost_model(
         },
         "improvement_over_baseline_pct": round(
             float((mae_baseline - mae_xgb) / mae_baseline * 100), 2
+        ),
+        "rmse_improvement_over_baseline_pct": round(
+            float((rmse_baseline - rmse_xgb) / rmse_baseline * 100), 2
         ),
         "top_features": feat_importance[:10],
     }

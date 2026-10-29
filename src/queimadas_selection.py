@@ -89,8 +89,11 @@ def filtrar_focos_municipio_bauru(csv_path: Path) -> pd.DataFrame:
             print(f"Aviso: Nenhum foco registrado em Bauru no arquivo {csv_path.name}")
             return pd.DataFrame()
 
-        # Converte a coluna temporal e padroniza para data (YYYY-MM-DD)
-        df_bauru["data"] = pd.to_datetime(df_bauru[col_data]).dt.tz_localize(None).dt.date
+        # O INPE publica o horário em GMT/UTC. Convertemos para o horário local (UTC-03:00)
+        # antes de extrair a data, no mesmo referencial da série meteorológica: um foco
+        # detectado às 22h locais pertence ao próprio dia, e não ao dia seguinte em UTC.
+        horario_utc = pd.to_datetime(df_bauru[col_data], utc=True)
+        df_bauru["data"] = (horario_utc - pd.Timedelta(hours=3)).dt.tz_localize(None).dt.date
         print(f"Ano {csv_path.name}: {len(df_bauru)} focos encontrados em Bauru.")
         return df_bauru
 

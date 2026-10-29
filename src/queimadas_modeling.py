@@ -1,6 +1,7 @@
 """
 Módulo de Machine Learning (KDD - Etapa 5)
-Treina modelo XGBoost Classifier para estimar o risco de queimada em Bauru/SP.
+Treina modelo XGBoost Classifier para estimar o risco de queimada em Bauru/SP
+no DIA SEGUINTE (t+1), a partir das condições observadas no dia t.
 Implementa a calibração de probabilidade para compensar o desbalanceamento
 e o parâmetro scale_pos_weight via:
 1. Calibração Paramétrica de Platt (Platt Scaling via Regressão Logística Unidimensional)
@@ -62,8 +63,10 @@ def recalibrar_probabilidade_analitica(prob_ponderada: float, scale_weight: floa
 
 def preparar_matriz_features(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
     """
-    Seleciona as variáveis meteorológicas e de estiagem para treinar o modelo.
-    Variável Alvo (y): has_fire (1 = dia com queimada, 0 = sem queimada).
+    Seleciona as variáveis meteorológicas e de estiagem do dia t para treinar o modelo.
+    Variável Alvo (y): target_fire_next_day (1 = houve foco no dia t+1).
+    Antes, o alvo era has_fire do próprio dia t: o modelo descrevia uma associação no
+    mesmo dia, e não uma previsão. O alvo t+1 alinha o modelo ao uso no app.
     """
     df_data = df.copy()
 
@@ -93,7 +96,7 @@ def preparar_matriz_features(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]
     ]
 
     X = df_data[features].copy()
-    y = df_data["has_fire"].copy()
+    y = df_data["target_fire_next_day"].astype(int).copy()
 
     return X, y
 
@@ -104,7 +107,7 @@ def treinar_xgboost_queimadas() -> Dict[str, Any]:
     Divisão Cronológica:
     - Treino (2010 a 2019): Ajuste dos pesos das árvores
     - Validação (2020 a 2021): Ajuste da calibração Platt Scaling (Sigmoide)
-    - Teste (2022 a 2024+): Avaliação cega de performance e calibração
+    - Teste (2022 até o último ano com dados do INPE): avaliação cega de desempenho e calibração
     """
     print(f"Carregando dados consolidados de: {PROCESSED_FILE}")
     df = pd.read_parquet(PROCESSED_FILE)
@@ -114,7 +117,10 @@ def treinar_xgboost_queimadas() -> Dict[str, Any]:
     # Divisão Cronológica Tripla
     treino_idx = X.index.year <= 2019
     val_idx = (X.index.year >= 2020) & (X.index.year <= 2021)
-    teste_idx = X.index.year >= 2022
+    # O teste vai até o último ano com focos publicados pelo INPE: o arquivo do ano
+    # corrente pode ainda não existir, e seus dias apareceriam como "sem fogo" (falsos zeros).
+    ultimo_ano_inpe = int(df.index[df["has_fire"] == 1].year.max())
+    teste_idx = (X.index.year >= 2022) & (X.index.year <= ultimo_ano_inpe)
 
     X_train, y_train = X[treino_idx], y[treino_idx]
     X_val, y_val = X[val_idx], y[val_idx]
@@ -122,7 +128,7 @@ def treinar_xgboost_queimadas() -> Dict[str, Any]:
 
     print(f"Amostras de Treino:     {len(X_train)} dias (2010 a 2019)")
     print(f"Amostras de Validação:  {len(X_val)} dias (2020 a 2021)")
-    print(f"Amostras de Teste:      {len(X_test)} dias (2022 a 2024+)")
+    print(f"Amostras de Teste:      {len(X_test)} dias (2022 a {ultimo_ano_inpe})")
 
     # Cálculo do peso de balanceamento da classe minoritária
     n_neg = (y_train == 0).sum()
@@ -159,11 +165,22 @@ def treinar_xgboost_queimadas() -> Dict[str, Any]:
     brier_ponderado = brier_score_loss(y_test, prob_ponderada_teste)
     brier_calibrado = brier_score_loss(y_test, prob_calibrada_teste)
 
-    print(f"\n[MÉTRICAS DO MODELO - TESTE 2022-2024+]")
+    # Referências honestas para classes raras:
+    # - PR-AUC de um classificador aleatório = prevalência do teste
+    # - Brier de "climatologia" = prever sempre a taxa-base observada no treino
+    prevalencia_treino = float(y_train.mean())
+    prevalencia_teste = float(y_test.mean())
+    brier_climatologia = brier_score_loss(y_test, np.full(len(y_test), prevalencia_treino))
+    brier_skill_score = 1.0 - brier_calibrado / brier_climatologia
+
+    print(f"\n[MÉTRICAS DO MODELO - TESTE 2022-{ultimo_ano_inpe}]")
     print(f" -> ROC-AUC (Capacidade de Separação): {auc_roc:.4f}")
     print(f" -> PR-AUC (Precisão Média):           {pr_auc:.4f}")
     print(f" -> Brier Score Não Calibrado:         {brier_ponderado:.4f}")
-    print(f" -> Brier Score Calibrado (Excelente): {brier_calibrado:.4f}")
+    print(f" -> Brier Score Calibrado:             {brier_calibrado:.4f}")
+    print(f" -> Brier da Climatologia (taxa-base): {brier_climatologia:.4f}")
+    print(f" -> Brier Skill Score (calibrado):     {brier_skill_score:+.3f}  (> 0 = melhor que a taxa-base)")
+    print(f" -> Prevalência no teste:              {prevalencia_teste:.4f}  (PR-AUC de referência)")
 
     # -------------------------------------------------------------
     # Cálculo da Curva Percentual: Estiagem vs. Chance de Queimada
@@ -204,9 +221,8 @@ def treinar_xgboost_queimadas() -> Dict[str, Any]:
         curva_risco.append(
             {
                 "dias_estiagem": int(dias),
-                # Mantém chave principal para retrocompatibilidade com o dashboard
-                "chance_queimada_percentual": round(p_ponderada * 100, 2),
-                "indice_risco_relativo_percentual": round(p_ponderada * 100, 2),
+                # Escore do modelo ponderado (0–100): ordena o risco, NÃO é probabilidade
+                "indice_risco_relativo": round(p_ponderada * 100, 2),
                 "probabilidade_calibrada_percentual": round(p_calibrada * 100, 2),
                 "probabilidade_analitica_percentual": round(p_analitica * 100, 2),
             }
@@ -233,7 +249,15 @@ def treinar_xgboost_queimadas() -> Dict[str, Any]:
         "pr_auc": round(pr_auc, 4),
         "brier_score_ponderado": round(brier_ponderado, 4),
         "brier_score_calibrado": round(brier_calibrado, 4),
+        "brier_score_climatologia": round(brier_climatologia, 4),
+        "brier_skill_score": round(brier_skill_score, 4),
+        "prevalencia_treino": round(prevalencia_treino, 4),
+        "prevalencia_teste": round(prevalencia_teste, 4),
+        "positivos_treino": int(y_train.sum()),
+        "positivos_teste": int(y_test.sum()),
         "scale_weight": round(scale_weight, 2),
+        "alvo": "foco de queimada no dia seguinte (t+1)",
+        "periodo_teste": f"{int(X_test.index.year.min())}-{int(X_test.index.year.max())}",
         "total_treino": int(len(X_train)),
         "total_val": int(len(X_val)),
         "total_teste": int(len(X_test)),

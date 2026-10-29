@@ -23,13 +23,57 @@ PHYSICAL_LIMITS = {
 
 def load_raw_data(raw_csv_path: str) -> pd.DataFrame:
     """
-    Carrega o arquivo CSV bruto, converte a coluna temporal para DatetimeIndex
-    e define o fuso horário local America/Sao_Paulo.
+    Carrega o arquivo CSV bruto e converte a coluna temporal para DatetimeIndex.
+    Os horários são locais padrão (UTC-03:00), sem informação de fuso no índice.
     """
     df = pd.read_csv(raw_csv_path)
     df["date"] = pd.to_datetime(df["date"])
     df = df.set_index("date")
     return df
+
+
+def ensure_local_time(df: pd.DataFrame, metadata_path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Garante que a carga histórica esteja em horário local.
+
+    Versões antigas de `selection.py` gravavam o índice em UTC (a série começava às 03:00
+    do primeiro dia). Se os metadados não indicam horário local e o primeiro registro
+    cai exatamente no deslocamento UTC, o índice é corrigido somando o deslocamento
+    (-3 h em Bauru). Arquivos já gravados em horário local não são alterados.
+    """
+    audit: Dict[str, Any] = {"timezone_shift_hours": 0, "legacy_utc_detected": False}
+    meta_file = Path(metadata_path)
+    if not meta_file.exists() or df.empty:
+        return df, audit
+
+    with open(meta_file, encoding="utf-8") as f:
+        metadata = json.load(f)
+
+    if metadata.get("time_reference", "").startswith("horario_local"):
+        return df, audit
+
+    offset_s = int(metadata.get("timezone_offset_seconds", 0))
+    expected_utc_start = pd.Timestamp(metadata["start_date"]) - pd.Timedelta(seconds=offset_s)
+    if offset_s != 0 and df.index.min() == expected_utc_start:
+        df = df.copy()
+        df.index = df.index + pd.Timedelta(seconds=offset_s)
+        audit["timezone_shift_hours"] = offset_s / 3600
+        audit["legacy_utc_detected"] = True
+    return df, audit
+
+
+def load_incremental_raws(raw_dir: str = "data/raw") -> pd.DataFrame:
+    """
+    Carrega todos os lotes incrementais (2025 em diante), já em horário local,
+    gravados por `update_weather.py` em data/raw/.
+    """
+    files = sorted(Path(raw_dir).glob("bauru_weather_hourly_incremental_*.csv"))
+    if not files:
+        return pd.DataFrame()
+    frames = [load_raw_data(str(f)) for f in files]
+    df = pd.concat(frames)
+    # Se dois lotes cobrirem a mesma hora, vale o mais recente
+    return df[~df.index.duplicated(keep="last")].sort_index()
 
 
 def ensure_temporal_continuity(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
@@ -120,12 +164,25 @@ def run_preprocessing_pipeline(
     raw_path: str = "data/raw/bauru_weather_hourly_2010-01-01_2024-12-31.csv",
     output_dir: str = "data/processed",
     reports_dir: str = "reports/tables",
+    include_incremental: bool = True,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Executa o fluxo completo da Etapa 3 e persiste o resultado.
+    Une a carga histórica (2010–2024) aos lotes incrementais de data/raw/, para que
+    reprocessar a base nunca descarte os dados de 2025 em diante.
     """
     print(f"1. Carregando dados brutos de: {raw_path}")
     df_raw = load_raw_data(raw_path)
+    metadata_path = str(raw_path).replace(".csv", "_metadata.json")
+    df_raw, tz_audit = ensure_local_time(df_raw, metadata_path)
+    if tz_audit["legacy_utc_detected"]:
+        print(f"   Carga histórica em UTC detectada: índice deslocado {tz_audit['timezone_shift_hours']:+.0f} h para o horário local.")
+
+    if include_incremental:
+        df_inc = load_incremental_raws(str(Path(raw_path).parent))
+        if not df_inc.empty:
+            print(f"   + {len(df_inc)} registros incrementais ({df_inc.index.min()} a {df_inc.index.max()})")
+            df_raw = pd.concat([df_raw, df_inc])
 
     print("2. Verificando continuidade do eixo temporal...")
     df_cont, temporal_audit = ensure_temporal_continuity(df_raw)
@@ -142,6 +199,7 @@ def run_preprocessing_pipeline(
             "start": str(df_clean.index.min()),
             "end": str(df_clean.index.max()),
         },
+        "timezone_audit": tz_audit,
         "temporal_audit": temporal_audit,
         "physical_bounds_audit": bounds_audit,
         "imputation_audit": imputation_audit,
