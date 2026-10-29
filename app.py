@@ -1334,7 +1334,8 @@ with tab5:
     # pode ainda não ter sido publicado: seus dias apareceriam como "sem fogo" (falsos zeros),
     # então a série vai só até o último ano com focos publicados (mesmo critério do modelo).
     if not df_queimadas.empty and "year" in df_queimadas.columns:
-        ultimo_ano_inpe = int(df_queimadas.loc[df_queimadas["has_fire"] == 1, "year"].max())
+        anos_com_fogo = df_queimadas.loc[df_queimadas["has_fire"] == 1, "year"]
+        ultimo_ano_inpe = int(anos_com_fogo.max() if not anos_com_fogo.empty else df_queimadas["year"].max())
         f_queimadas = df_queimadas[
             (df_queimadas["year"] >= year_range[0])
             & (df_queimadas["year"] <= min(year_range[1], ultimo_ano_inpe))

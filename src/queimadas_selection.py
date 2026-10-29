@@ -43,7 +43,7 @@ def download_e_extrair_ano_inpe(ano: int, output_dir: Path = RAW_QUEIMADAS_DIR) 
         headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"}
         req = urllib.request.Request(url, headers=headers)
 
-        with urllib.request.urlopen(req) as response, open(zip_path, "wb") as out_file:
+        with urllib.request.urlopen(req, timeout=60) as response, open(zip_path, "wb") as out_file:
             out_file.write(response.read())
 
         # Descompactação inteligente do CSV (extrai na raiz de output_dir mesmo se o ZIP contiver subpastas como tmp/)
