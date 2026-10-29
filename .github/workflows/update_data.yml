@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: 1. Checkout do Repositório
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: 2. Configurar o Python
         uses: actions/setup-python@v5
@@ -48,7 +50,13 @@ jobs:
             git config --local user.email "github-actions[bot]@users.noreply.github.com"
             git add data/ reports/
             git commit -m "chore(data): atualizacao automatica de clima e queimadas [skip ci]"
-            git push
+            # O coletor do IPMet faz commits a cada 30 min: integra-os antes do push
+            for i in 1 2 3; do
+              git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+              sleep 10
+            done
+            echo "Falha ao enviar o commit após 3 tentativas."
+            exit 1
           else
             echo "Nenhum dado novo a comitar. A base já estava atualizada."
           fi

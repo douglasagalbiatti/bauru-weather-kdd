@@ -4,7 +4,7 @@ Metodologia KDD (Knowledge Discovery in Databases)
 Autor: Prof. Dr. Douglas A. Galbiatti
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import html
 from pathlib import Path
 import json
@@ -21,6 +21,13 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 import streamlit as st
 from src.queimadas_modeling import PlattCalibrator
+from src.ipmet import (
+    SNAPSHOT_PATH as IPMET_SNAPSHOT_PATH,
+    fetch_ipmet_html,
+    load_snapshot as load_ipmet_snapshot,
+    parse_ipmet_html,
+    snapshot_age,
+)
 
 
 # Configuração da página
@@ -363,86 +370,59 @@ def _fetch_open_meteo_live_raw(
     return inference_row, summary_today
 
 
+IPMET_SNAPSHOT_MAX_AGE = timedelta(hours=3)
+
+
+def _get_ipmet_readings() -> Tuple[Dict[str, Any], str]:
+    """
+    Obtém as leituras da estação IPMet/UNESP Bauru, em ordem de preferência:
+    1. Snapshot gravado pelo coletor no Brasil (data/interim/ipmet_latest.json), se recente;
+    2. Acesso direto ao site (funciona ao rodar o app localmente, com IP brasileiro).
+    Retorna (leituras, origem), com origem "snapshot" ou "live".
+    """
+    snapshot = load_ipmet_snapshot(Path(__file__).resolve().parent / IPMET_SNAPSHOT_PATH)
+    age = snapshot_age(snapshot) if snapshot else None
+    if snapshot and age is not None and -timedelta(minutes=15) <= age <= IPMET_SNAPSHOT_MAX_AGE:
+        return snapshot, "snapshot"
+
+    try:
+        return parse_ipmet_html(fetch_ipmet_html(timeout=10)), "live"
+    except Exception as ex:
+        if snapshot and age is not None:
+            horas = age.total_seconds() / 3600
+            raise ValueError(
+                f"última leitura do coletor tem {horas:.1f} h (limite de "
+                f"{IPMET_SNAPSHOT_MAX_AGE.total_seconds() / 3600:.0f} h) e o acesso direto falhou: {ex}"
+            ) from ex
+        raise
+
+
 @st.cache_data(ttl=900, show_spinner=False)
 def _fetch_ipmet_live_raw(_df_daily: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
-    Realiza o web scraping da estação meteorológica de superfície do IPMet/UNESP Bauru
-    (https://www.ipmetradar.com.br/2estacao.php) e combina com a inércia histórica local.
+    Condições atuais da estação meteorológica de superfície do IPMet/UNESP Bauru
+    (https://www.ipmetradar.com.br/2estacao.php), combinadas com a inércia histórica local.
     """
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Referer": "https://www.ipmetradar.com.br/",
-        "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "Upgrade-Insecure-Requests": "1",
-        "Connection": "keep-alive",
-    }
+    readings, ipmet_origin = _get_ipmet_readings()
 
-    session = requests.Session()
-    session.headers.update(headers)
+    def _val(key: str) -> Optional[float]:
+        v = readings.get(key)
+        return float(v) if v is not None else None
 
-    urls = [
-        "https://www.ipmetradar.com.br/2estacao.php",
-        "http://www.ipmetradar.com.br/2estacao.php",
-    ]
-    response = None
-    last_err = None
-
-    # allow_redirects=False impede categoricamente loops de redirecionamento (TooManyRedirects)
-    for target_url in urls:
-        try:
-            resp = session.get(target_url, timeout=10, allow_redirects=False)
-            if resp.status_code == 200 and "<table" in resp.text.lower():
-                response = resp
-                break
-            elif resp.status_code in (301, 302, 303, 307, 308):
-                last_err = f"Servidor Apache redirecionou temporariamente (HTTP {resp.status_code})"
-            else:
-                last_err = f"Código HTTP inesperado ({resp.status_code})"
-        except Exception as ex:
-            last_err = str(ex)
-
-    if response is None:
-        raise ValueError(f"Estação IPMet indisponível: {last_err}")
-
-    tables = re.findall(r"<table[^>]*>(.*?)</table>", response.text, re.DOTALL | re.IGNORECASE)
-    if not tables:
-        raise ValueError("Tabela da estação IPMet não encontrada na página.")
-
-    clean_text = html.unescape(re.sub(r"<[^>]+>", " ", tables[0]))
-    clean_text = " ".join(clean_text.split())
-
-    time_m = re.search(r"Horário da Leitura \(GMT-3\)\s*([\d\/]+ - [\d:]+)", clean_text)
-    temp_m = re.search(r"Temp:\s*([\d\.\-]+)\s*o\s*C", clean_text)
-    max_m = re.search(r"Max:\s*([\d\.\-]+)\s*o\s*C", clean_text)
-    min_m = re.search(r"Min:\s*([\d\.\-]+)\s*o\s*C", clean_text)
-    chuva_m = re.search(r"Hoje:\s*([\d\.\-]+)\s*mm", clean_text)
-    umid_m = re.search(r"Umidade:\s*([\d\.\-]+)%", clean_text)
-    umid_min_m = re.search(r"Min:\s*([\d\.\-]+)%", clean_text)
-    vento_m = re.search(r"Veloc:\s*([\d\.\-]+)\s*km/h", clean_text)
-    rajada_m = re.search(r"Max dia:\s*([\d\.\-]+)\s*km/h", clean_text)
-    pressao_m = re.search(r"Pressão:\s*([\d\.\-]+)\s*mB", clean_text)
-    rad_m = re.search(r"Radiação Global:\s*([\d\.\-]+)\s*W/m", clean_text)
-
-    temp_atual = float(temp_m.group(1)) if temp_m else 22.0
-    temp_max = float(max_m.group(1)) if max_m else temp_atual
-    temp_min = float(min_m.group(1)) if min_m else temp_atual
+    temp_atual = _val("temp") if _val("temp") is not None else 22.0
+    temp_max = _val("temp_max") if _val("temp_max") is not None else temp_atual
+    temp_min = _val("temp_min") if _val("temp_min") is not None else temp_atual
     temp_mean = (temp_max + temp_min) / 2.0 if temp_max != temp_min else temp_atual
-    precip_today = float(chuva_m.group(1)) if chuva_m else 0.0
-    hum_min = float(umid_min_m.group(1)) if umid_min_m else (float(umid_m.group(1)) if umid_m else 50.0)
-    hum_mean = float(umid_m.group(1)) if umid_m else 70.0
-    wind_mean = float(vento_m.group(1)) if vento_m else 8.0
-    wind_max = float(rajada_m.group(1)) if rajada_m else (wind_mean * 1.5)
-    press_mean = float(pressao_m.group(1)) if pressao_m else 955.0
+    precip_today = _val("precipitation_today") if _val("precipitation_today") is not None else 0.0
+    hum_mean = _val("humidity") if _val("humidity") is not None else 70.0
+    hum_min = _val("humidity_min") if _val("humidity_min") is not None else (
+        _val("humidity") if _val("humidity") is not None else 50.0
+    )
+    wind_mean = _val("wind_speed") if _val("wind_speed") is not None else 8.0
+    wind_max = _val("wind_gust_max") if _val("wind_gust_max") is not None else (wind_mean * 1.5)
+    press_mean = _val("pressure") if _val("pressure") is not None else 955.0
 
-    rad_val = float(rad_m.group(1)) if rad_m else 0.0
+    rad_val = _val("solar_radiation") or 0.0
     solar_rad = rad_val if rad_val > 50.0 else float(_df_daily["solar_radiation_sum"].iloc[-1])
 
     roll7_temp = float(_df_daily["temp_mean"].tail(7).mean())
@@ -487,7 +467,7 @@ def _fetch_ipmet_live_raw(_df_daily: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[s
         "cos_doy": cos_doy,
     }])
 
-    reading_time = time_m.group(1) if time_m else now.strftime("%d/%m/%Y")
+    reading_time = readings.get("reading_time_raw") or now.strftime("%d/%m/%Y")
     summary = {
         "date": reading_time,
         "temp_mean": temp_mean,
@@ -499,6 +479,7 @@ def _fetch_ipmet_live_raw(_df_daily: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[s
         "pressure": press_mean,
         "solar_radiation": solar_rad,
         "status": "ipmet_online",
+        "ipmet_origin": ipmet_origin,
     }
     return inference_row, summary
 
@@ -981,7 +962,7 @@ with tab4:
             st.info(
                 f"ℹ️ **Transição Automática para a Estação IPMet / UNESP Bauru:** A API Open-Meteo encontrava-se temporariamente "
                 f"com limite de requisições ou inacessível. As condições climáticas de hoje foram capturadas com sucesso via "
-                f"**Web Scraping da Estação de Superfície da UNESP Bauru** ({live_summary['date']})."
+                f"**Estação de Superfície da UNESP Bauru** ({live_summary['date']})."
             )
         elif status == "ipmet_online":
             st.markdown(
@@ -991,7 +972,7 @@ with tab4:
                         📡 Estação Meteorológica de Superfície IPMet / UNESP Bauru ({live_summary['date']})
                     </span>
                     <div style="font-size: 0.9rem; color: #1e40af; margin-top: 4px;">
-                        Medições físicas locais coletadas em tempo real via web scraping do radar meteorológico (ipmetradar.com.br).
+                        Medições físicas locais da estação de superfície (ipmetradar.com.br), coletadas a cada 30 minutos por um coletor no Brasil.
                     </div>
                 </div>
                 """,

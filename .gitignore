@@ -24,3 +24,6 @@ __pycache__/
 # Dados brutos volumosos de queimadas (INPE Brasil)
 data/raw/queimadas/
 
+# Self-hosted GitHub Actions runner (credenciais e binários)
+actions-runner/
+
