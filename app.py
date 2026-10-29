@@ -110,10 +110,26 @@ st.markdown(
 )
 
 
-@st.cache_data
-def load_datasets():
-    # Chave de controle para invalidação de cache (atualização queimadas 2025)
-    _versao_cache = "bauru_queimadas_2025_v1"
+DATA_DIRS = ("data/processed", "reports/tables", "models")
+
+
+def data_files_signature():
+    """Data de modificação e tamanho dos arquivos lidos por load_datasets().
+
+    Serve de chave do cache: o st.cache_data só se invalida sozinho quando o código da
+    função muda. Assim, um push de dados (manual ou do workflow diário) recarrega a base
+    no Streamlit Cloud sem precisar reiniciar o app.
+    """
+    return tuple(
+        (str(p), p.stat().st_mtime_ns, p.stat().st_size)
+        for d in DATA_DIRS
+        for p in sorted(Path(d).glob("*"))
+        if p.is_file()
+    )
+
+
+@st.cache_data(max_entries=1)
+def load_datasets(signature):
     daily_path = Path("data/processed/bauru_weather_daily.parquet")
     monthly_path = Path("data/processed/bauru_weather_monthly.parquet")
     stats_path = Path("reports/tables/statistical_tests.json")
@@ -555,7 +571,7 @@ def fetch_live_today_weather(
     queimadas_metrics,
     xgb_queimadas_model,
     xgb_calibrado_model,
-) = load_datasets()
+) = load_datasets(data_files_signature())
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def _comparacao_ipmet_openmeteo(dias: int) -> Tuple[pd.DataFrame, Optional[float]]:
