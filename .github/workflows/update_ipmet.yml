@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   collect-ipmet:
-    runs-on: [self-hosted, linux, ipmet-br]
+    runs-on: [self-hosted, linux]
     timeout-minutes: 10
 
     steps:
