@@ -998,6 +998,29 @@ with tab4:
         unsafe_allow_html=True,
     )
 
+    with st.container(border=True):
+        st.markdown("#### ⚠️ Limitações do Modelo de Temperatura")
+        if ml_metrics.get("xgboost") and ml_metrics.get("baseline_persistence"):
+            ganho_modelo = (
+                f"no teste cego, o erro médio (MAE) foi de {_fmt(ml_metrics['xgboost']['mae_celsius'])} °C, contra "
+                f"{_fmt(ml_metrics['baseline_persistence']['mae_celsius'])} °C de repetir a máxima de hoje, um ganho de "
+                f"{_fmt(ml_metrics.get('improvement_over_baseline_pct', 0), 1)}%. Com RMSE de "
+                f"{_fmt(ml_metrics['xgboost']['rmse_celsius'])} °C, erros de 2 °C ou mais em um dia comum são esperados."
+            )
+        else:
+            ganho_modelo = "as métricas de teste não estão disponíveis nesta execução."
+        st.markdown(f"""
+- **Ganho modesto:** {ganho_modelo}
+- **Dados de treino modelados:** o modelo aprendeu com a reanálise Open-Meteo (ERA5), que representa uma área de vários km ao redor de Bauru, e não com um termômetro local. A aba "Sensor × Modelo" mostra as diferenças para a estação IPMet.
+- **Outra fonte na previsão ao vivo:** as condições de hoje vêm da previsão Open-Meteo ou da estação IPMet, e não da reanálise usada no treino. O erro do modelo com essas fontes não foi medido.
+- **Modelo congelado:** treinado até {ml_metrics.get('train_years', [None, 2021])[1]} e testado em {ml_metrics.get('test_period', '2022-2024').split(' ')[0].replace('-', '–')}. A atualização diária traz dados novos, mas não retreina o modelo, e o desempenho depois do período de teste não foi avaliado.
+- **Extremos:** modelos de árvore não extrapolam além dos valores vistos no treino, então recordes de calor tendem a ser subestimados.
+- **Um único alvo:** prevê só a temperatura máxima de amanhã. Não prevê chuva, temperatura mínima nem horizontes maiores.
+- **Simulador manual:** combinações fisicamente incoerentes, como chuva forte com radiação solar máxima, geram respostas sem significado.
+- **Importância não é causa:** o ganho de informação mostra quanto o modelo usa cada variável, não uma relação física de causa e efeito.
+- **Não é previsão oficial:** para decisões, consulte o INMET, o CPTEC/INPE ou a Defesa Civil.
+""")
+
     # ==========================================
     # SIMULADOR 100% ONLINE E AUTOMÁTICO
     # ==========================================
@@ -1329,6 +1352,37 @@ with tab5:
             f"Score da probabilidade calibrada é {_fmt(queimadas_metrics['brier_skill_score'], 3)}: ela quase não "
             "melhora em relação a usar sempre a média histórica. Use o índice para comparar dias, não como previsão exata."
         )
+
+    with st.container(border=True):
+        st.markdown("#### ⚠️ Limitações do Modelo de Queimadas")
+        if queimadas_metrics.get("roc_auc") is not None:
+            poucos_casos = (
+                f"só {queimadas_metrics.get('positivos_treino', '—')} dias com foco no treino e "
+                f"{queimadas_metrics.get('positivos_teste', '—')} no teste. Com tão poucos casos, as métricas são instáveis, "
+                "e poucos dias a mais ou a menos mudam o resultado."
+            )
+            acerto_alertas = (
+                f"o PR-AUC de {_fmt(queimadas_metrics.get('pr_auc', 0), 3)} é baixo, mesmo considerando que só "
+                f"{_fmt(queimadas_metrics.get('prevalencia_teste', 0) * 100, 1)}% dos dias de teste tiveram foco. Entre os dias apontados como de maior risco, "
+                f"a grande maioria não tem foco, e o Brier Skill Score de {_fmt(queimadas_metrics.get('brier_skill_score', 0), 3)} "
+                "mostra que a probabilidade calibrada quase não supera a média histórica."
+            )
+            peso = f"cerca de {_fmt(queimadas_metrics['scale_weight'], 0)} vezes" if queimadas_metrics.get("scale_weight") else "peso extra"
+            periodo_teste = queimadas_metrics.get("periodo_teste", "2022+").replace("-", "–")
+        else:
+            poucos_casos = "as métricas de teste não estão disponíveis nesta execução."
+            acerto_alertas = "sem métricas de teste, não há como avaliar os alertas."
+            peso, periodo_teste = "peso extra", "2022+"
+        st.markdown(f"""
+- **Evento raro:** {poucos_casos}
+- **Muitos falsos alarmes:** {acerto_alertas}
+- **Índice relativo, não probabilidade:** os dias com foco receberam {peso} mais peso no treino. O índice serve para ordenar dias, e as faixas 35/70 são referências visuais, não limiares validados.
+- **Focos do INPE:** o satélite só detecta focos acima de certo tamanho, nos horários de passagem e sem nuvens. Foco não é área queimada, e o ano corrente pode ainda não ter sido publicado.
+- **Só clima:** o modelo não vê a origem do fogo, geralmente ligada à ação humana, nem uso do solo ou vegetação disponível. O clima usado no treino vem da reanálise Open-Meteo, e não de um sensor local.
+- **Modelo congelado:** treinado até 2019, ajustado em 2020–2021 e testado em {periodo_teste}. A atualização diária traz dados novos, mas não retreina o modelo.
+- **Associação, não causa:** a curva de sensibilidade mostra como o modelo reage à estiagem, não um efeito comprovado.
+- **Não substitui alertas oficiais:** para decisões, consulte o INPE, a Defesa Civil ou o Corpo de Bombeiros.
+""")
 
     # Filtragem temporal reativa para queimadas. O arquivo anual do INPE do ano corrente
     # pode ainda não ter sido publicado: seus dias apareceriam como "sem fogo" (falsos zeros),
