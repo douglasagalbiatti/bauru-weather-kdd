@@ -7,20 +7,6 @@
 
 ---
 
-## 0. Regra de Governança para o Antigravity
-
-> **OBRIGATÓRIO:** o Antigravity **deve voltar (apresentar) o código ao usuário e aguardar aprovação ANTES de implementá-lo no projeto**.
->
-> Fluxo exigido para cada etapa:
-> 1. Escrever o código proposto e exibi-lo ao usuário (na conversa).
-> 2. Explicar explicitamente o que ele faz.
-> 3. Aguardar a confirmação explícita do usuário.
-> 4. Só então criar/alterar arquivos do projeto.
->
-> Nenhum arquivo deve ser criado, editado ou executado sem esse ciclo de aprovação.
-
----
-
 ## 1. Step by Step (KDD)
 
 ### Etapa 1 – Compreensão do domínio e definição de objetivos
@@ -252,7 +238,7 @@ params = {
 
 ```
 bauru-weather-kdd/
-├── PROJETO_KDD.md              # Este documento (guia metodológico)
+├── README.md                   # Este documento (guia metodológico)
 ├── data/
 │   ├── raw/                    # Etapa 2 – Seleção: dados brutos da Open-Meteo (imutáveis)
 │   ├── interim/                # Etapa 3 – Pré-processamento: dados parcialmente tratados
@@ -284,4 +270,3 @@ bauru-weather-kdd/
 ### Regras da estrutura
 - `data/raw/` nunca é editada manualmente: qualquer correção ocorre no código de pré-processamento.
 - Toda lógica reutilizável fica em `src/`; os notebooks apenas importam e executam essas funções.
-- Os arquivos de `src/` são criados **vazios**. Seu conteúdo só entra no projeto após o código ser mostrado ao usuário e aprovado (ver seção 0).
