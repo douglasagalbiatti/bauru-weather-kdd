@@ -71,7 +71,7 @@ def preparar_matriz_features(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]
     df_data = df.copy()
 
     # Ciclo senoidal sazonal (dia do ano) para capturar a época de seca (inverno/primavera)
-    doy = df_data.index.dayofyear
+    doy = df_data.index.day_of_year
     df_data["sin_doy"] = np.sin(2 * np.pi * doy / 365.25)
     df_data["cos_doy"] = np.cos(2 * np.pi * doy / 365.25)
 

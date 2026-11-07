@@ -207,7 +207,7 @@ def build_contingency_vector_from_history(df_daily: pd.DataFrame) -> Tuple[pd.Da
     """
     last_row = df_daily.iloc[-1]
     last_date = df_daily.index[-1]
-    doy = last_date.dayofyear
+    doy = last_date.day_of_year
     sin_doy = float(np.sin(2 * np.pi * doy / 365.25))
     cos_doy = float(np.cos(2 * np.pi * doy / 365.25))
 
@@ -347,7 +347,7 @@ def _fetch_open_meteo_live_raw(
     roll30_temp = float(df_d["temperature_2m_mean"].tail(30).mean())
     roll7_rain = float(df_d["precipitation_sum"].tail(7).sum())
 
-    day_of_year = today_date.dayofyear
+    day_of_year = today_date.day_of_year
     sin_doy = np.sin(2 * np.pi * day_of_year / 365.25)
     cos_doy = np.cos(2 * np.pi * day_of_year / 365.25)
 

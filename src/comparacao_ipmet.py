@@ -63,7 +63,7 @@ def montar_comparacao(ipmet: pd.DataFrame, om: pd.DataFrame) -> pd.DataFrame:
     om = om[om.index <= agora]
 
     ipmet_h = ipmet[variaveis].resample("h").mean().dropna(how="all")
-    comp = ipmet_h.join(om[variaveis], how="inner", lsuffix="_ipmet", rsuffix="_om")
+    comp = ipmet_h.add_suffix("_ipmet").join(om[variaveis].add_suffix("_om"), how="inner")
 
     for var in variaveis:
         comp[f"dif_{var}"] = comp[f"{var}_ipmet"] - comp[f"{var}_om"]

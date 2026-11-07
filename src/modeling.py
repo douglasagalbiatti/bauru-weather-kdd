@@ -29,7 +29,7 @@ def prepare_features(df_daily: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
     df["target_temp_max_next_day"] = df["temp_max"].shift(-1)
 
     # Ciclo senoidal sazonal (dia do ano)
-    day_of_year = df.index.dayofyear
+    day_of_year = df.index.day_of_year
     df["sin_doy"] = np.sin(2 * np.pi * day_of_year / 365.25)
     df["cos_doy"] = np.cos(2 * np.pi * day_of_year / 365.25)
 
