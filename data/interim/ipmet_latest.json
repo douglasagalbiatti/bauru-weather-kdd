@@ -1,16 +1,16 @@
 {
   "source": "IPMet/UNESP Bauru – https://www.ipmetradar.com.br/2estacao.php",
-  "fetched_at_utc": "2026-11-18T17:07:33+00:00",
-  "temp": 28.5,
+  "fetched_at_utc": "2026-11-18T17:37:18+00:00",
+  "temp": 27.7,
   "temp_max": 30.3,
   "temp_min": 20.7,
   "precipitation_today": 0.0,
-  "humidity": 66.0,
+  "humidity": 68.0,
   "humidity_min": 61.0,
-  "wind_speed": 7.5,
+  "wind_speed": 9.7,
   "wind_gust_max": 26.5,
-  "pressure": 937.5,
-  "solar_radiation": 110.0,
-  "reading_time_raw": "18/11 - 14:05",
-  "reading_time": "2026-11-18T14:05:00-03:00"
+  "pressure": 936.9,
+  "solar_radiation": 339.0,
+  "reading_time_raw": "18/11 - 14:35",
+  "reading_time": "2026-11-18T14:35:00-03:00"
 }
